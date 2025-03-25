@@ -1,0 +1,33 @@
+{
+  "cli": {
+    "version": ">= 15.0.10",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPERWALL_API_KEY_IOS": "your_ios_api_key"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_SUPERWALL_API_KEY_IOS": "your_ios_api_key"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPERWALL_API_KEY_IOS": "your_ios_api_key"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
