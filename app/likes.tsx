@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,119 +6,166 @@ import {
   TouchableOpacity,
   FlatList,
   SafeAreaView,
-  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import BottomTabBar from './components/BottomTabBar';
 import Colors from '../constants/Colors';
+import { useNameStatus } from '../hooks/useNameStatus';
 
-// Define types
-type NameCardProps = {
+// Define types with the same structure as NameType in useNameStatus
+type NameCardItem = {
   firstName: string;
-  lastName: string;
+  lastName?: string;
   meaning: string;
   origin: string;
+  gender: 'boy' | 'girl' | 'unisex' | 'any';
   id?: string;
   isFavorite?: boolean;
 };
 
 export default function LikesScreen() {
-  const params = useLocalSearchParams<{
-    likedNamesData: string;
-    maybeNamesData: string;
-  }>();
   const insets = useSafeAreaInsets();
+  // Use the useNameStatus hook to access persistently stored names
+  const { likedNames, maybeNames, dislikedNames, saveNameStatus } = useNameStatus();
   
-  const [likedNames, setLikedNames] = useState<NameCardProps[]>([]);
-  const [maybeNames, setMaybeNames] = useState<NameCardProps[]>([]);
-  const [favoriteNames, setFavoriteNames] = useState<NameCardProps[]>([]);
+  const [favoriteNames, setFavoriteNames] = useState<NameCardItem[]>([]);
   const [activeTab, setActiveTab] = useState<'liked' | 'maybe' | 'favorites'>('liked');
   
+  // Debug useEffect to log the names we're receiving from useNameStatus
   useEffect(() => {
-    if (params.likedNamesData) {
-      try {
-        const parsed = JSON.parse(params.likedNamesData);
-        // Add unique IDs if they don't exist
-        const withIds = parsed.map((name: NameCardProps) => ({
-          ...name,
-          id: name.id || `${name.firstName}-${name.lastName || ''}-${Math.random().toString(36).substr(2, 9)}`,
-          isFavorite: name.isFavorite || false
-        }));
-        setLikedNames(withIds);
-      } catch (error) {
-        console.error('Error parsing liked names:', error);
-      }
-    }
+    console.log("LikesScreen - likedNames from hook:", likedNames.length);
+    console.log("LikesScreen - maybeNames from hook:", maybeNames.length);
     
-    if (params.maybeNamesData) {
-      try {
-        const parsed = JSON.parse(params.maybeNamesData);
-        // Add unique IDs if they don't exist
-        const withIds = parsed.map((name: NameCardProps) => ({
-          ...name,
-          id: name.id || `${name.firstName}-${name.lastName || ''}-${Math.random().toString(36).substr(2, 9)}`,
-          isFavorite: name.isFavorite || false
-        }));
-        setMaybeNames(withIds);
-      } catch (error) {
-        console.error('Error parsing maybe names:', error);
-      }
+    // Log some sample names if available
+    if (likedNames.length > 0) {
+      console.log("Sample liked name:", likedNames[0].firstName);
     }
-  }, [params.likedNamesData, params.maybeNamesData]);
-
-  // Update favorites when liked or maybe names change
-  useEffect(() => {
-    const allFavorites = [...likedNames, ...maybeNames].filter(name => name.isFavorite);
-    setFavoriteNames(allFavorites);
+    if (maybeNames.length > 0) {
+      console.log("Sample maybe name:", maybeNames[0].firstName);
+    }
   }, [likedNames, maybeNames]);
   
-  const toggleFavorite = (id: string) => {
-    // Update in liked names
-    setLikedNames(prev => 
-      prev.map(name => 
-        name.id === id ? { ...name, isFavorite: !name.isFavorite } : name
-      )
-    );
+  // Process names once on component mount or when likedNames/maybeNames change
+  const [processedLikedNames, setProcessedLikedNames] = useState<NameCardItem[]>([]);
+  const [processedMaybeNames, setProcessedMaybeNames] = useState<NameCardItem[]>([]);
+  
+  // Helper function to generate consistent IDs for names
+  const generateNameId = useCallback((name: NameCardItem) => {
+    return `${name.firstName.toLowerCase()}-${(name.lastName || '').toLowerCase()}`;
+  }, []);
+  
+  // Process liked names when they change
+  useEffect(() => {
+    if (likedNames && likedNames.length > 0) {
+      console.log("Processing liked names:", likedNames.length);
+      const processed = likedNames.map((name) => ({
+        ...name,
+        id: generateNameId(name),
+        isFavorite: false
+      }));
+      setProcessedLikedNames(processed);
+    } else {
+      setProcessedLikedNames([]);
+    }
+  }, [likedNames, generateNameId]);
+  
+  // Process maybe names when they change
+  useEffect(() => {
+    if (maybeNames && maybeNames.length > 0) {
+      console.log("Processing maybe names:", maybeNames.length);
+      const processed = maybeNames.map((name) => ({
+        ...name,
+        id: generateNameId(name),
+        isFavorite: false
+      }));
+      setProcessedMaybeNames(processed);
+    } else {
+      setProcessedMaybeNames([]);
+    }
+  }, [maybeNames, generateNameId]);
+
+  // Update favorites when processed names change
+  useEffect(() => {
+    const allFavorites = [...processedLikedNames, ...processedMaybeNames].filter(name => name.isFavorite);
+    setFavoriteNames(allFavorites);
+  }, [processedLikedNames, processedMaybeNames]);
+  
+  // Use useCallback to prevent recreation on every render
+  const toggleFavorite = useCallback((id: string) => {
+    // Find the name in either list
+    setProcessedLikedNames(prevNames => {
+      const updatedNames = [...prevNames];
+      const nameIndex = updatedNames.findIndex(name => name.id === id);
+      
+      if (nameIndex !== -1) {
+        const updatedName = { 
+          ...updatedNames[nameIndex], 
+          isFavorite: !updatedNames[nameIndex].isFavorite 
+        };
+        updatedNames[nameIndex] = updatedName;
+        
+        // No need to call saveNameStatus here as we're just toggling favorite status
+        // which is a UI-only state that doesn't affect the underlying storage
+      }
+      
+      return updatedNames;
+    });
     
-    // Update in maybe names
-    setMaybeNames(prev => 
-      prev.map(name => 
-        name.id === id ? { ...name, isFavorite: !name.isFavorite } : name
-      )
-    );
-  };
+    setProcessedMaybeNames(prevNames => {
+      const updatedNames = [...prevNames];
+      const nameIndex = updatedNames.findIndex(name => name.id === id);
+      
+      if (nameIndex !== -1) {
+        const updatedName = { 
+          ...updatedNames[nameIndex], 
+          isFavorite: !updatedNames[nameIndex].isFavorite 
+        };
+        updatedNames[nameIndex] = updatedName;
+        
+        // No need to call saveNameStatus here as we're just toggling favorite status
+        // which is a UI-only state that doesn't affect the underlying storage
+      }
+      
+      return updatedNames;
+    });
+  }, []);
   
   const getNameInitial = (name: string) => {
     return name.charAt(0).toUpperCase();
   };
   
-  const renderNameItem = ({ item }: { item: NameCardProps | null }) => {
+  const renderNameItem = useCallback(({ item }: { item: NameCardItem }) => {
     if (!item) {
       return null; // Skip rendering null items
     }
     
-    // Set solid colors based on the active tab
-    let cardColor: string = '#FF5BA1'; // Default pink for liked names
+    // Set solid colors based on the gender
+    let cardColor: string;
+    let avatarBgColor: string;
     
-    if (activeTab === 'liked') {
-      cardColor = '#FF5BA1'; // Pink for liked names
-    } else if (activeTab === 'maybe') {
-      cardColor = '#3CA3FF'; // Blue for maybe names
-    } else if (activeTab === 'favorites') {
-      cardColor = '#B799FF'; // Purple for favorites
+    if (item.gender === 'boy') {
+      cardColor = Colors.gender.boy.main;
+      avatarBgColor = Colors.gender.boy.light;
+    } else if (item.gender === 'girl') {
+      cardColor = Colors.gender.girl.main;
+      avatarBgColor = Colors.gender.girl.light;
+    } else if (item.gender === 'unisex') {
+      cardColor = Colors.gender.neutral.main;
+      avatarBgColor = Colors.gender.neutral.light;
+    } else {
+      cardColor = Colors.gender.neutral.main;
+      avatarBgColor = Colors.gender.neutral.light;
     }
     
     return (
       <View style={styles.nameCard}>
         <View style={[styles.cardContainer, { backgroundColor: cardColor }]}>
           <View style={styles.avatarContainer}>
-            <View style={[styles.avatar, { backgroundColor: activeTab === 'liked' ? '#FFC2D8' : 
-                                                         activeTab === 'maybe' ? '#C9E7FF' : 
-                                                         '#E2D9FF' }]}>
+            <View style={[styles.avatar, { backgroundColor: avatarBgColor }]}>
               <Text style={styles.avatarText}>{getNameInitial(item.firstName)}</Text>
             </View>
           </View>
@@ -148,67 +195,79 @@ export default function LikesScreen() {
         </View>
       </View>
     );
-  };
+  }, [toggleFavorite]);
   
-  const goBack = () => {
+  const goBack = useCallback(() => {
     router.back();
-  };
-  
+  }, []);
+
+  // Get the data for the current active tab
+  const getActiveData = useCallback(() => {
+    switch (activeTab) {
+      case 'liked':
+        return processedLikedNames;
+      case 'maybe':
+        return processedMaybeNames;
+      case 'favorites':
+        return favoriteNames;
+      default:
+        return [];
+    }
+  }, [activeTab, processedLikedNames, processedMaybeNames, favoriteNames]);
+
+  // Ensure keyExtractor always uses the item's ID which is now guaranteed to be unique
+  const keyExtractor = useCallback((item: NameCardItem) => {
+    return item.id || `fallback-${Math.random().toString(36).substring(2, 15)}`;
+  }, []);
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
       <LinearGradient
-        colors={[Colors.secondary.yellow, Colors.secondary.peach]}
+        colors={[Colors.gradients.background[0], Colors.gradients.background[1]]}
         style={styles.background}
       >
         <SafeAreaView style={[styles.safeAreaContent, { paddingBottom: 0 }]}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.headerIconButton} onPress={goBack}>
-              <Ionicons name="arrow-back" size={28} color="white" />
+              <Ionicons name="arrow-back" size={28} color="black" />
             </TouchableOpacity>
             <View style={styles.headerTabs}>
               <TouchableOpacity
                 style={[
-                  styles.headerTab,
-                  activeTab === 'liked' && styles.activeHeaderTabLiked,
+                       styles.headerTab,
+                       activeTab === 'liked' && styles.activeHeaderTabLiked,
                 ]}
                 onPress={() => setActiveTab('liked')}
               >
-                <Text style={styles.headerTabText}>I Like</Text>
+                     <Text style={styles.headerTabText}>I Like</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
-                  styles.headerTab,
-                  activeTab === 'maybe' && styles.activeHeaderTabMaybe,
+                       styles.headerTab,
+                       activeTab === 'maybe' && styles.activeHeaderTabMaybe,
                 ]}
                 onPress={() => setActiveTab('maybe')}
               >
-                <Text style={styles.headerTabText}>Maybe</Text>
+                     <Text style={styles.headerTabText}>Maybe</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
-                  styles.headerTab,
-                  activeTab === 'favorites' && styles.activeHeaderTabFavorites,
+                       styles.headerTab,
+                       activeTab === 'favorites' && styles.activeHeaderTabFavorites,
                 ]}
                 onPress={() => setActiveTab('favorites')}
               >
-                <Text style={styles.headerTabText}>Favorites</Text>
+                     <Text style={styles.headerTabText}>Favorites</Text>
               </TouchableOpacity>
             </View>
           </View>
           
           <FlatList
-            data={
-              activeTab === 'liked' 
-                ? likedNames 
-                : activeTab === 'maybe' 
-                  ? maybeNames 
-                  : favoriteNames
-            }
-            keyExtractor={(item) => item.id || `${Math.random()}`}
+            data={getActiveData()}
             renderItem={renderNameItem}
+            keyExtractor={keyExtractor}
             contentContainerStyle={styles.listContainer}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>
@@ -227,9 +286,7 @@ export default function LikesScreen() {
         
         <View style={styles.tabBarContainer}>
           <BottomTabBar 
-            likedNamesData={JSON.stringify(likedNames)}
-            maybeNamesData={JSON.stringify(maybeNames)}
-            backgroundColor={Colors.secondary.peach}
+            backgroundColor={Colors.gradients.background[1]}
           />
         </View>
       </LinearGradient>
@@ -252,7 +309,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: Colors.secondary.yellow,
+    backgroundColor: Colors.neutral.white,
   },
   headerIconButton: {
     padding: 10,
@@ -278,7 +335,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B799FF', // Purple for favorites tab
   },
   headerTabText: {
-    color: Colors.text.onDark,
+    color: 'black',
     fontWeight: 'bold',
     fontSize: 13,
   },
@@ -352,7 +409,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: Colors.text.onDark,
+    color: 'black',
     textAlign: 'center',
   },
   tabBarContainer: {
@@ -361,5 +418,5 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     width: '100%',
-  },
+  }
 }); 

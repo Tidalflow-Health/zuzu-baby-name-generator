@@ -27,7 +27,7 @@ type Route = {
 export default function BottomTabBar({
   likedNamesData = '[]',
   maybeNamesData = '[]',
-  backgroundColor = Colors.secondary.peach,
+  backgroundColor = '#FFFFFF',
 }: BottomTabBarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -116,7 +116,7 @@ export default function BottomTabBar({
                   style={[
                     styles.tabText,
                     {
-                      color: pathname === route.path ? Colors.primary.main : Colors.text.onDark,
+                      color: pathname === route.path ? Colors.primary.main : 'black',
                       fontWeight: pathname === route.path ? '600' : 'normal',
                       marginTop: 24, // Push text down to align with other tabs
                     },
@@ -141,14 +141,14 @@ export default function BottomTabBar({
                 <Ionicons
                   name={`${route.icon}${isActive ? '' : '-outline'}`}
                   size={getIconSize(isActive, false)}
-                  color={isActive ? Colors.primary.main : Colors.text.onDark}
+                  color={isActive ? Colors.primary.main : 'black'}
                   style={styles.tabIcon}
                 />
                 <Text
                   style={[
                     styles.tabText,
                     {
-                      color: isActive ? Colors.primary.main : Colors.text.onDark,
+                      color: isActive ? Colors.primary.main : 'black',
                       fontWeight: isActive ? '600' : 'normal',
                     },
                   ]}

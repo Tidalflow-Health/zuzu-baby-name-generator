@@ -23,7 +23,7 @@ const Colors = {
 
   // Background gradients (consistent across app)
   gradients: {
-    background: ['#F9D976', '#F39F86'], // Yellow to peach (main app background)
+    background: ['#FFFFFF', '#E6F3FF'], // White to light blue
     card: ['#FF5BA1', '#FFA1C5'], // Primary to light pink (name cards)
     button: ['#FF5BA1', '#D1487F'], // Primary to dark pink (interactive elements)
   },
@@ -59,7 +59,26 @@ const Colors = {
     onDark: '#FFFFFF', // White text on dark backgrounds
     muted: '#AAAAAA', // Muted text for secondary information
     accent: '#FF5BA1', // Primary accent for important text
-  }
+  },
+
+  // Gender-specific colors
+  gender: {
+    boy: {
+      main: '#4B9EFF', // Blue
+      light: '#A1D2FF', // Light blue
+      gradient: ['#4B9EFF', '#A1D2FF'],
+    },
+    girl: {
+      main: '#FF5BA1', // Pink
+      light: '#FFA1C5', // Light pink
+      gradient: ['#FF5BA1', '#FFA1C5'],
+    },
+    neutral: {
+      main: '#B799FF', // Purple
+      light: '#D4C1FF', // Light purple
+      gradient: ['#B799FF', '#D4C1FF'],
+    },
+  },
 };
 
 export default Colors;

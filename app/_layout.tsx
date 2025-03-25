@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { AuthProvider } from '../contexts/AuthContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -40,24 +41,27 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={IOSTheme}>
-        <Stack 
-          screenOptions={{ 
-            headerShown: false,
-            // Remove animation completely
-            animation: 'none',
-            // Keep gesture navigation enabled for user experience
-            gestureEnabled: true,
-            presentation: 'card'
-          }}
-        >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="home" />
-          <Stack.Screen name="names" />
-          <Stack.Screen name="likes" />
-        </Stack>
-        <StatusBar style="light" />
-      </ThemeProvider>
+      <AuthProvider>
+        <ThemeProvider value={IOSTheme}>
+          <Stack 
+            screenOptions={{ 
+              headerShown: false,
+              // Remove animation completely
+              animation: 'none',
+              // Keep gesture navigation enabled for user experience
+              gestureEnabled: true,
+              presentation: 'card'
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="home" />
+            <Stack.Screen name="names" />
+            <Stack.Screen name="likes" />
+            <Stack.Screen name="test" />
+          </Stack>
+          <StatusBar style="light" />
+        </ThemeProvider>
+      </AuthProvider>
     </GestureHandlerRootView>
   );
 }

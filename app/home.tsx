@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   Image,
   Animated,
+  Switch,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,6 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import BottomTabBar from './components/BottomTabBar';
 import Colors from '../constants/Colors';
+import { Link } from 'expo-router';
+import { FEATURES } from '../utils/appConfig';
 
 export default function HomeScreen() {
   const [lastName, setLastName] = useState('');
@@ -24,6 +27,7 @@ export default function HomeScreen() {
   const [likedNames, setLikedNames] = useState([]);
   const [maybeNames, setMaybeNames] = useState([]);
   const [showLastNameInput, setShowLastNameInput] = useState(false);
+  const [useAI, setUseAI] = useState(FEATURES.AI_NAME_GENERATION);
   const insets = useSafeAreaInsets();
 
   // Animation for the last name input - ensure it has an initial value of 0
@@ -47,6 +51,7 @@ export default function HomeScreen() {
         lastName,
         gender,
         searchQuery,
+        useAI: useAI ? 'true' : 'false',
       },
     });
   };
@@ -69,7 +74,7 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <StatusBar style="light" />
       <LinearGradient
-        colors={[Colors.secondary.yellow, Colors.secondary.peach]}
+        colors={[Colors.gradients.background[0], Colors.gradients.background[1]]}
         style={styles.background}
       >
         <SafeAreaView style={styles.content}>
@@ -80,7 +85,7 @@ export default function HomeScreen() {
                 style={styles.logo}
                 resizeMode="contain"
               />
-              <Text style={styles.appSubtitle}>Baby Name Generator</Text>
+              <Text style={styles.appSubtitle}>Baby Names</Text>
             </View>
 
             <View style={styles.formContainer}>
@@ -101,7 +106,7 @@ export default function HomeScreen() {
                   <Ionicons
                     name="search"
                     size={22}
-                    color={Colors.primary.main}
+                    color="#FF5BA1"
                   />
                 </TouchableOpacity>
               </View>
@@ -165,7 +170,7 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     style={[
                       styles.lastNameButton,
-                      { backgroundColor: '#F9D976' }
+                      { backgroundColor: '#F0F0F0' }
                     ]}
                     onPress={toggleLastNameInput}
                   >
@@ -191,25 +196,31 @@ export default function HomeScreen() {
                     value={lastName}
                     onChangeText={setLastName}
                     placeholder="Enter last name"
-                    placeholderTextColor={Colors.neutral.gray}
+                    placeholderTextColor="black"
                     autoFocus={showLastNameInput}
                     returnKeyType="done"
                   />
                 </View>
               </Animated.View>
               
+              <View style={styles.aiToggleContainer}>
+                <Text style={styles.aiToggleText}>
+                  AI-powered name generation
+                </Text>
+                <Switch
+                  trackColor={{ false: "#B7B7B7", true: "#80CBC4" }}
+                  thumbColor={useAI ? "#26A69A" : "#f4f3f4"}
+                  ios_backgroundColor="#B7B7B7"
+                  onValueChange={setUseAI}
+                  value={useAI}
+                />
+              </View>
+              
               <TouchableOpacity
-                style={styles.searchButton}
+                style={styles.findNamesButton}
                 onPress={handleSearch}
               >
-                <LinearGradient
-                  colors={[Colors.primary.main, Colors.primary.dark]}
-                  style={styles.buttonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Text style={styles.buttonText}>Find Names</Text>
-                </LinearGradient>
+                <Text style={styles.findNamesButtonText}>Find Names</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -218,9 +229,19 @@ export default function HomeScreen() {
             <BottomTabBar 
               likedNamesData={JSON.stringify(likedNames)}
               maybeNamesData={JSON.stringify(maybeNames)}
-              backgroundColor={Colors.secondary.peach}
+              backgroundColor={Colors.gradients.background[1]}
             />
           </View>
+          
+          {/* Test link - dev only */}
+          <Link href="/test" asChild>
+            <TouchableOpacity 
+              style={styles.testButton}
+              accessibilityLabel="Test Supabase Integration"
+            >
+              <Text style={styles.testButtonText}>Test Supabase</Text>
+            </TouchableOpacity>
+          </Link>
         </SafeAreaView>
       </LinearGradient>
     </View>
@@ -244,146 +265,115 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 48,
   },
   logo: {
-    width: 180,
-    height: 80,
-    marginBottom: 8,
+    width: 120,
+    height: 120,
+    marginBottom: 16,
   },
   appTitle: {
-    fontSize: 48,
+    fontSize: 42,
     fontWeight: 'bold',
-    color: Colors.neutral.white,
-    textAlign: 'center',
-    marginBottom: 12,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+    color: 'white',
   },
   appSubtitle: {
     fontSize: 24,
-    fontWeight: '600',
     color: 'white',
-    textAlign: 'center',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-    marginHorizontal: 20,
-    paddingVertical: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.4)',
+    fontWeight: '600',
   },
   formContainer: {
-    paddingHorizontal: 24,
-    width: '100%',
-    maxWidth: 500,
-    alignSelf: 'center',
+    marginHorizontal: 24,
+  },
+  searchInputContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontFamily: 'System',  // This will use San Francisco on iOS
+    fontSize: 16,
+    color: 'black',
+  },
+  searchIconButton: {
+    padding: 8,
   },
   optionsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 16,
-  },
-  searchInputContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.neutral.white,
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: Colors.neutral.black,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 3,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-  },
-  searchInput: {
-    flex: 1,
-    padding: 16,
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.text.onLight,
-    backgroundColor: 'transparent',
-  },
-  searchIconButton: {
-    padding: 10,
-    marginRight: 5,
+    marginBottom: 24,
   },
   formLabel: {
+    color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.text.onDark,
     marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0.5, height: 0.5 },
-    textShadowRadius: 1,
+    fontWeight: '600',
+    fontFamily: 'System',  // This will use San Francisco on iOS
   },
   genderOptions: {
     flexDirection: 'row',
-    marginRight: 8,
   },
   genderIconOption: {
     width: 44,
     height: 44,
-    marginRight: 8,
-    borderRadius: 12,
-    alignItems: 'center',
+    borderRadius: 22,
     justifyContent: 'center',
-    shadowColor: Colors.neutral.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  lastNameButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: Colors.primary.main,
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.neutral.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
   activeGenderOption: {
-    backgroundColor: Colors.neutral.white,
+    borderColor: 'white',
   },
   questionMarkText: {
     fontSize: 20,
     fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0.5, height: 0.5 },
-    textShadowRadius: 1,
   },
-  searchButton: {
-    borderRadius: 30,
-    overflow: 'hidden',
-    marginTop: 8,
-    shadowColor: Colors.neutral.black,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 5,
-  },
-  buttonGradient: {
-    paddingVertical: 18,
-    paddingHorizontal: 20,
+  lastNameButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  buttonText: {
-    color: Colors.text.onDark,
+  aiToggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginHorizontal: 8,
+  },
+  aiToggleText: {
+    fontSize: 16,
+    fontWeight: '500',
+    fontFamily: 'System',  // This will use San Francisco on iOS
+    color: 'white',
+  },
+  findNamesButton: {
+    backgroundColor: '#FF5BA1',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  findNamesButtonText: {
+    color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0.5, height: 0.5 },
-    textShadowRadius: 1,
+    fontFamily: 'System',  // This will use San Francisco on iOS
   },
   tabBarContainer: {
     position: 'absolute',
@@ -391,5 +381,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     width: '100%',
+  },
+  testButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    backgroundColor: '#5E5CE6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  testButtonText: {
+    color: 'white',
+    fontWeight: '600',
   },
 }); 
