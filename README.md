@@ -1,1 +1,0 @@
-# zuzu-baby-name-generator
