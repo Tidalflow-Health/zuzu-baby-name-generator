@@ -1,23 +1,25 @@
-// Vercel API endpoint for generating baby names using OpenAI
-
+// OpenAI API handler for generating baby names
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 /**
  * Generate baby names using OpenAI
  * 
- * @param {object} req - The request object
- * @param {object} res - The response object
+ * @param {object} req - Request object
+ * @param {object} res - Response object
  */
-export default async function handler(req, res) {
-  // CORS headers
+module.exports = async (req, res) => {
+  // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
 
-  // Handle OPTIONS request for CORS
+  // Handle preflight request
   if (req.method === 'OPTIONS') {
-    return res.status(200).json({ success: true });
+    return res.status(200).end();
   }
 
   // Only allow POST requests
@@ -25,17 +27,62 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Check for OpenAI API key
-  if (!OPENAI_API_KEY) {
-    return res.status(500).json({ error: 'OpenAI API key not configured' });
-  }
-
   try {
-    const { lastName, gender, count = 20, searchQuery = '', excludeNames = [] } = req.body;
+    // Check for OpenAI API key
+    if (!OPENAI_API_KEY) {
+      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    }
 
-    // Build the prompt for OpenAI
-    const prompt = generatePrompt({ lastName, gender, searchQuery, excludeNames });
+    // Parse request body or query parameters
+    const body = req.body || {};
+    const {
+      lastName = '',
+      gender = 'any',
+      count = 20,
+      searchQuery = '',
+      excludeNames = []
+    } = body;
+
+    console.log('Generating names with:', {
+      lastName,
+      gender,
+      searchQuery,
+      count,
+      excludeNamesCount: excludeNames?.length || 0
+    });
+
+    // Construct the prompt for OpenAI
+    let prompt = `Generate ${count} unique baby names`;
     
+    if (gender && gender !== 'any') {
+      prompt += ` for ${gender}s`;
+    }
+    
+    if (searchQuery) {
+      prompt += ` matching the search criteria: "${searchQuery}"`;
+    }
+    
+    if (lastName) {
+      prompt += ` with the last name ${lastName}`;
+    }
+
+    if (excludeNames && excludeNames.length > 0) {
+      prompt += `. Don't include these names: ${excludeNames.join(', ')}`;
+    }
+
+    prompt += `. For each name, include the origin, meaning, and gender (boy, girl, or unisex).
+    Format the results as a JSON array of objects with these properties: firstName, lastName, meaning, origin, gender.
+    Example:
+    [
+      {
+        "firstName": "Sophia",
+        "lastName": "${lastName || ''}",
+        "meaning": "Wisdom",
+        "origin": "Greek",
+        "gender": "girl"
+      }
+    ]`;
+
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -48,7 +95,7 @@ export default async function handler(req, res) {
         messages: [
           {
             role: 'system',
-            content: 'You are a baby name generator assistant. Generate creative, meaningful baby names with accurate origins and meanings.'
+            content: 'You are a helpful assistant that generates baby names in JSON format. Only respond with valid JSON.'
           },
           {
             role: 'user',
@@ -61,88 +108,59 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('OpenAI API Error:', errorData);
+      const errorData = await response.text();
+      console.error('OpenAI API error:', errorData);
       return res.status(response.status).json({ 
-        error: 'Error from OpenAI API', 
-        details: errorData 
+        error: `OpenAI API error: ${response.status} - ${response.statusText}` 
       });
     }
 
     const data = await response.json();
-    const text = data.choices[0].message.content;
-    
-    // Parse the response into structured name data
-    const names = parseOpenAIResponse(text, lastName, gender);
-    
-    // Return the generated names
-    return res.status(200).json({ names });
-  } catch (error) {
-    console.error('Error generating names:', error);
-    return res.status(500).json({ error: 'Failed to generate names', details: error.message });
-  }
-}
+    console.log('OpenAI response received');
 
-/**
- * Generate the prompt for OpenAI
- */
-function generatePrompt({ lastName, gender, searchQuery, excludeNames }) {
-  let prompt = 'Generate a list of 20 unique baby names';
-  
-  // Add gender specification
-  if (gender && gender !== 'any') {
-    prompt += ` for ${gender}s`;
-  }
-  
-  // Add last name context
-  if (lastName) {
-    prompt += ` with the last name "${lastName}"`;
-  }
-  
-  // Add search query context
-  if (searchQuery) {
-    prompt += ` that match this criteria: ${searchQuery}`;
-  }
-  
-  // Add names to exclude
-  if (excludeNames && excludeNames.length > 0) {
-    const excludeList = excludeNames.slice(0, 30).join(', '); // Limit to 30 names for prompt length
-    prompt += `. Exclude these names: ${excludeList}`;
-  }
-  
-  // Add format instructions
-  prompt += `. For each name, include: first name, meaning, origin, and gender (boy/girl/unisex). Return the results in JSON format as an array of objects with firstName, meaning, origin, and gender fields. Example: [{"firstName": "Emma", "meaning": "Universal", "origin": "Germanic", "gender": "girl"}, ...]`;
-  
-  return prompt;
-}
-
-/**
- * Parse the OpenAI response into structured name data
- */
-function parseOpenAIResponse(text, lastName, gender) {
-  try {
     // Extract JSON from the response
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    
-    if (!jsonMatch) {
-      console.error('Could not find JSON array in response:', text);
-      return [];
+    let generatedNames = [];
+    try {
+      const contentText = data.choices[0].message.content.trim();
+      // Try to parse JSON directly
+      try {
+        generatedNames = JSON.parse(contentText);
+      } catch (e) {
+        // If direct parsing fails, try to extract JSON from the string
+        const jsonMatch = contentText.match(/\[\s*\{.*\}\s*\]/s);
+        if (jsonMatch) {
+          generatedNames = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('Could not extract valid JSON from the response');
+        }
+      }
+
+      // Validate the response format
+      if (!Array.isArray(generatedNames)) {
+        throw new Error('Response is not an array');
+      }
+
+      // Filter out any names in the exclude list
+      if (excludeNames && excludeNames.length > 0) {
+        generatedNames = generatedNames.filter(name => 
+          !excludeNames.includes(name.firstName));
+      }
+
+      console.log(`Successfully generated ${generatedNames.length} names`);
+      
+      // Return the names
+      return res.status(200).json({ names: generatedNames });
+    } catch (error) {
+      console.error('Error parsing OpenAI response:', error, data.choices[0].message.content);
+      return res.status(500).json({ 
+        error: 'Failed to parse names from OpenAI response',
+        rawResponse: data.choices[0].message.content
+      });
     }
-    
-    const jsonString = jsonMatch[0];
-    const names = JSON.parse(jsonString);
-    
-    // Validate and normalize the names
-    return names.map(name => ({
-      firstName: name.firstName || '',
-      lastName: lastName || undefined,
-      meaning: name.meaning || 'Unknown meaning',
-      origin: name.origin || 'Unknown origin',
-      gender: name.gender || (gender !== 'any' ? gender : 'unisex'),
-    })).filter(name => name.firstName.trim() !== '');
   } catch (error) {
-    console.error('Error parsing OpenAI response:', error);
-    console.log('Raw response:', text);
-    return [];
+    console.error('Error in name generation:', error);
+    return res.status(500).json({ 
+      error: `Error generating names: ${error.message}` 
+    });
   }
-} 
+}; 

@@ -1,5 +1,35 @@
 # Zuzu Baby Name Generator
 
+A beautiful React Native app for discovering and saving baby names.
+
+## Setup
+
+1. Clone the repository
+```bash
+git clone https://github.com/yourusername/zuzu-baby-name-generator.git
+cd zuzu-baby-name-generator
+```
+
+2. Install dependencies
+```bash
+npm install
+```
+
+3. Set up environment variables
+```bash
+cp .env.example .env
+```
+Then edit `.env` with your actual values:
+- Get Supabase credentials from your Supabase project settings
+- Get Superwall API keys from your Superwall dashboard
+- Add your OpenAI API key for name generation
+- Update Expo project ID if needed
+
+4. Start the development server
+```bash
+npx expo start
+```
+
 A mobile application to help parents discover, search, and save baby names. Built with React Native and Expo, the app includes offline support and features a clean, modern UI.
 
 ## Table of Contents

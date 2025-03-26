@@ -57,7 +57,7 @@ export default function RootLayout() {
             <Stack.Screen name="home" />
             <Stack.Screen name="names" />
             <Stack.Screen name="likes" />
-            <Stack.Screen name="test" />
+            {/* <Stack.Screen name="test" /> */}
           </Stack>
           <StatusBar style="light" />
         </ThemeProvider>

@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import { generateNames, NameGenerationParams, GeneratedName } from '../utils/openai';
-import { FEATURES } from '../utils/appConfig';
 import { useNameStatus } from './useNameStatus';
 
 /**
@@ -16,11 +15,6 @@ export function useAINames() {
    * Generate baby names using AI
    */
   const fetchNames = useCallback(async (params: NameGenerationParams) => {
-    if (!FEATURES.AI_NAME_GENERATION) {
-      console.log('AI name generation is disabled in feature flags');
-      return [];
-    }
-    
     setIsLoading(true);
     setError(null);
     

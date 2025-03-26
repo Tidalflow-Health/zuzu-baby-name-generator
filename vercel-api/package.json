@@ -1,21 +1,20 @@
 {
-  "name": "zuzu-name-generator-api",
+  "name": "zuzu-baby-name-generator-api",
   "version": "1.0.0",
-  "description": "API for Zuzu Baby Name Generator",
-  "main": "index.js",
+  "description": "Vercel API for the Zuzu Baby Name Generator app",
+  "main": "api/generate-names.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
   },
-  "keywords": [
-    "baby",
-    "names",
-    "generator",
-    "api",
-    "openai"
-  ],
-  "author": "",
-  "license": "MIT",
+  "engines": {
+    "node": ">=18.x"
+  },
   "dependencies": {
-    "openai": "^4.0.0"
-  }
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "vercel": "latest"
+  },
+  "private": true
 } 

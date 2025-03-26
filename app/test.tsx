@@ -1,3 +1,4 @@
+/*
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -95,43 +96,42 @@ export default function TestScreen() {
       result = '4. Create Name Test:\n';
       try {
         const testName = {
-          firstName: 'TestName' + Math.floor(Math.random() * 1000),
-          lastName: 'TestLastName',
-          meaning: 'Test meaning',
-          origin: 'Test origin',
-          gender: 'any' as const,
+          name: 'Test Name',
+          last_name: null,
+          meaning: 'For testing purposes',
+          origin: 'Test',
+          status: 'maybe' as const,
+          search_context: { test: true }
         };
         
-        await saveNameStatus(testName, 'liked');
-        result += '✅ Successfully created and liked test name\n';
-        
-        // Fetch again to verify
-        await fetchNames();
-      } catch (err) {
-        result += `❌ Error creating test name: ${err instanceof Error ? err.message : String(err)}\n`;
+        await createName(testName);
+        result += '✅ Successfully created test name\n';
+      } catch (error) {
+        result += `❌ Error creating test name: ${error instanceof Error ? error.message : String(error)}\n`;
+      }
+      setTestResult(prev => prev + result + '\n');
+
+      // Test 5: Sync Operations
+      result = '5. Sync Operations Test:\n';
+      try {
+        await syncPendingOperations();
+        result += '✅ Successfully synced pending operations\n';
+      } catch (error) {
+        result += `❌ Error syncing operations: ${error instanceof Error ? error.message : String(error)}\n`;
       }
       setTestResult(prev => prev + result + '\n');
 
       setTestStatus('success');
     } catch (err) {
-      setTestResult(prev => prev + `\n❌ TEST FAILED: ${err instanceof Error ? err.message : String(err)}`);
+      setTestResult(prev => prev + `\n❌ Error running tests: ${err instanceof Error ? err.message : String(err)}`);
       setTestStatus('error');
-    }
-  };
-
-  const handleRefresh = async () => {
-    try {
-      await fetchNames();
-      setTestResult('Names refreshed from database.');
-    } catch (err) {
-      setTestResult(`Error refreshing names: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
   const handleSignOut = async () => {
     try {
       await signOut();
-      setTestResult('Signed out successfully.');
+      setTestResult('Successfully signed out');
     } catch (err) {
       setTestResult(`Error signing out: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -140,18 +140,9 @@ export default function TestScreen() {
   const handleSignIn = async () => {
     try {
       await signIn();
-      setTestResult('Signed in anonymously.');
+      setTestResult('Successfully signed in');
     } catch (err) {
       setTestResult(`Error signing in: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  };
-
-  const handleSyncPending = async () => {
-    try {
-      await syncPendingOperations();
-      setTestResult(`Synced ${pendingOperations.length} pending operations.`);
-    } catch (err) {
-      setTestResult(`Error syncing: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -398,37 +389,48 @@ export default function TestScreen() {
       setTestResult(prev => prev + `Maybe: ${maybeFromStorage ? JSON.parse(maybeFromStorage).length : 0} names\n`);
       setTestResult(prev => prev + `Disliked: ${dislikedFromStorage ? JSON.parse(dislikedFromStorage).length : 0} names\n\n`);
       
-      // 3. Create a test name if no liked names exist
-      if (likedNames.length === 0) {
-        setTestResult(prev => prev + '3. No liked names found. Creating a test name...\n');
-        
-        const testName = {
-          firstName: 'TestPersistence' + Math.floor(Math.random() * 1000),
-          lastName: 'TestLast',
-          meaning: 'Test meaning for persistence',
-          origin: 'Test',
-          gender: 'any' as const,
-        };
-        
-        await saveNameStatus(testName, 'liked');
-        setTestResult(prev => prev + '✅ Created test name\n\n');
-        
-        // Verify it was added
-        const updatedStorage = await AsyncStorage.getItem('zuzu_liked_names');
-        const count = updatedStorage ? JSON.parse(updatedStorage).length : 0;
-        setTestResult(prev => prev + `✅ Now have ${count} liked names in storage\n\n`);
-      } else {
-        setTestResult(prev => prev + '3. Liked names exist. No need to create test name.\n\n');
+      // 3. Test saving a new name
+      setTestResult(prev => prev + '3. Testing name saving...\n');
+      const testName = {
+        name: 'Persistence Test',
+        last_name: null,
+        meaning: 'Testing name persistence',
+        origin: 'Test',
+        status: 'maybe' as const,
+        search_context: { test: true }
+      };
+      
+      try {
+        await saveNameStatus(testName, 'maybe');
+        setTestResult(prev => prev + '✅ Successfully saved test name\n\n');
+      } catch (error) {
+        setTestResult(prev => prev + `❌ Error saving test name: ${error instanceof Error ? error.message : String(error)}\n\n`);
       }
       
-      // 4. Instructions for testing persistence
-      setTestResult(prev => prev + 'PERSISTENCE TEST INSTRUCTIONS:\n\n');
-      setTestResult(prev => prev + '1. Note the number of liked/maybe/disliked names above\n');
-      setTestResult(prev => prev + '2. Completely close the app (swipe it away from recent apps)\n');
-      setTestResult(prev => prev + '3. Reopen the app and come back to this test screen\n');
-      setTestResult(prev => prev + '4. Run this test again - the numbers should match\n\n');
+      // 4. Verify the name was saved
+      setTestResult(prev => prev + '4. Verifying saved name...\n');
+      const updatedMaybeNames = await AsyncStorage.getItem('zuzu_maybe_names');
+      const maybeNamesArray = updatedMaybeNames ? JSON.parse(updatedMaybeNames) : [];
+      const foundTestName = maybeNamesArray.find((n: any) => n.name === 'Persistence Test');
       
-      setTestResult(prev => prev + 'If numbers don\'t match after restart, there\'s an issue with persistence\n');
+      if (foundTestName) {
+        setTestResult(prev => prev + '✅ Test name found in storage\n\n');
+      } else {
+        setTestResult(prev => prev + '❌ Test name not found in storage\n\n');
+      }
+      
+      // 5. Clean up test data
+      setTestResult(prev => prev + '5. Cleaning up test data...\n');
+      try {
+        const filteredNames = maybeNamesArray.filter((n: any) => n.name !== 'Persistence Test');
+        await AsyncStorage.setItem('zuzu_maybe_names', JSON.stringify(filteredNames));
+        setTestResult(prev => prev + '✅ Successfully cleaned up test data\n\n');
+      } catch (error) {
+        setTestResult(prev => prev + `❌ Error cleaning up test data: ${error instanceof Error ? error.message : String(error)}\n\n`);
+      }
+      
+      setTestResult(prev => prev + 'NAME PERSISTENCE TEST COMPLETE\n\n');
+      
     } catch (err) {
       setTestResult(`Error testing name persistence: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -472,44 +474,6 @@ export default function TestScreen() {
             >
               <Text style={styles.smallButtonText}>Check</Text>
             </TouchableOpacity>
-          </View>
-
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusLabel}>Force Offline:</Text>
-            <Text style={[
-              styles.statusValue, 
-              { color: forceOffline ? 'red' : 'green' }
-            ]}>
-              {forceOffline ? 'Enabled' : 'Disabled'}
-            </Text>
-            <TouchableOpacity
-              style={[styles.syncButton, { backgroundColor: forceOffline ? '#4CAF50' : '#FF5252' }]}
-              onPress={toggleOfflineMode}
-            >
-              <Text style={styles.smallButtonText}>{forceOffline ? 'Disable' : 'Enable'}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusLabel}>Names Count:</Text>
-            <Text style={styles.statusValue}>
-              {namesLoading ? 'Loading...' : names.length}
-            </Text>
-          </View>
-
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusLabel}>Pending Operations:</Text>
-            <Text style={styles.statusValue}>
-              {pendingOperations.length}
-            </Text>
-            {pendingOperations.length > 0 && (
-              <TouchableOpacity 
-                style={styles.syncButton}
-                onPress={handleSyncPending}
-              >
-                <Text style={styles.smallButtonText}>Sync</Text>
-              </TouchableOpacity>
-            )}
           </View>
 
           <View style={styles.buttonRow}>
@@ -610,45 +574,49 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.neutral.white,
+    color: 'white',
   },
   backButton: {
     padding: 8,
-    backgroundColor: Colors.primary.main,
-    borderRadius: 8,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  smallButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     padding: 12,
     borderRadius: 8,
-    marginBottom: 12,
   },
   statusLabel: {
+    color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
     marginRight: 8,
   },
   statusValue: {
+    color: 'white',
     fontSize: 16,
     flex: 1,
   },
   syncButton: {
-    backgroundColor: '#3CA3FF',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 8,
     borderRadius: 4,
-  },
-  smallButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
+    marginLeft: 8,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -663,33 +631,31 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   primaryButton: {
-    backgroundColor: Colors.primary.main,
+    backgroundColor: '#0A7EA4',
   },
   secondaryButton: {
-    backgroundColor: '#3CA3FF',
+    backgroundColor: '#2C3E50',
   },
   dangerButton: {
-    backgroundColor: '#FF5252',
+    backgroundColor: '#E74C3C',
   },
   successButton: {
-    backgroundColor: '#4CAF50',
-  },
-  buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
+    backgroundColor: '#27AE60',
   },
   resultContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 8,
-    marginTop: 16,
+    padding: 16,
   },
   resultContent: {
-    padding: 16,
+    paddingBottom: 16,
   },
   resultText: {
     color: 'white',
-    fontFamily: 'monospace',
     fontSize: 14,
+    lineHeight: 20,
+    fontFamily: 'monospace',
   },
-}); 
+});
+*/ 

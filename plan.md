@@ -8,7 +8,7 @@
   - [x] Search icon in Zuzu pink
   - [x] Clear text button
   - [x] San Francisco font
-  - [x] Integration with ChatGPT API
+  - [x] Integration with ChatGPT API (Always-on)
 
 - [x] `FilterSection`
   - [x] Gender selector (Boy/Girl/Any)
@@ -16,6 +16,7 @@
   - [x] Collapsible animation
   - [x] San Francisco font
   - [x] Zuzu pink accents
+  - [x] Removed AI toggle (always on)
 
 ### 2. Name Card Components ✓
 - [x] `NameCard`
@@ -32,6 +33,7 @@
   - [x] Empty state view
   - [x] Refresh button
   - [x] Swipe animations
+  - [x] AI-only name generation (removed dummy data fallback)
 
 ### 3. List View Components ✓
 - [x] `NameList`
@@ -113,6 +115,7 @@
   - [x] Handle response parsing
   - [x] Error handling
   - [x] Rate limiting
+  - [x] Made AI the only name generation option
 
 ### 4. State Management ✓
 - [x] Authentication State

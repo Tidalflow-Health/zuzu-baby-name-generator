@@ -1,4 +1,4 @@
-import { platform } from 'react-native';
+import { Platform } from 'react-native';
 import { DEBUG_CONFIG } from './appConfig';
 
 // Types for name generation
@@ -19,33 +19,27 @@ export interface GeneratedName {
 }
 
 // Vercel API endpoint for OpenAI
-const VERCEL_API_URL = 'https://your-vercel-deployment-url.vercel.app/api/generate-names';
+const VERCEL_API_URL = 'https://backend-fyiajgvqe-tidalflow1.vercel.app';
 
 /**
  * Generate baby names using OpenAI via Vercel API
  */
 export async function generateNames(params: NameGenerationParams): Promise<GeneratedName[]> {
   try {
-    console.log('Generating names with params:', params);
-    
-    // Use mock data in debug mode
-    if (DEBUG_CONFIG.USE_MOCK_AI) {
-      console.log('Using mock AI data for name generation');
-      return getMockNames(params);
-    }
+    console.log('Generating names with AI params:', params);
     
     const response = await fetch(VERCEL_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': `ZuzuApp/${platform}`,
+        'User-Agent': `ZuzuApp/${Platform.OS}`,
       },
       body: JSON.stringify(params),
     });
     
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to generate names: ${response.status} - ${errorText}`);
+      throw new Error(`Failed to generate names with AI: ${response.status} - ${errorText}`);
     }
     
     const data = await response.json();
@@ -54,10 +48,7 @@ export async function generateNames(params: NameGenerationParams): Promise<Gener
     return data.names || [];
   } catch (error) {
     console.error('Error generating names with AI:', error);
-    
-    // Fall back to mock data if AI generation fails
-    console.log('Falling back to mock data after AI error');
-    return getMockNames(params);
+    throw error; // Rethrow the error to be handled by the caller
   }
 }
 

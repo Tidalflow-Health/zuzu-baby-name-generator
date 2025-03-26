@@ -2,7 +2,7 @@
   "expo": {
     "name": "Zuzu Baby Names",
     "slug": "zuzu-baby-names",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "zuzu",
@@ -10,16 +10,13 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.cqjack.expoappboilerplate",
+      "bundleIdentifier": "com.cqjack.zuzubabynames",
+      "buildNumber": "2",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true,
-          "NSExceptionDomains": {
-            "localhost": {
-              "NSExceptionAllowsInsecureHTTPLoads": true
-            }
-          }
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true
         }
       }
     },
@@ -48,18 +45,17 @@
         "origin": false
       },
       "eas": {
-        "projectId": "e55fcdea-13e2-4c3b-a4c3-59c174184eb5"
+        "projectId": "PROJECT_ID"
       }
-    },
-    "android": {
-      "package": "com.cqjack.expoappboilerplate",
-      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/your-project-id-here"
+      "url": "EXPO_UPDATE_URL"
+    },
+    "android": {
+      "package": "com.cqjack.zuzubabynames"
     }
   }
 }

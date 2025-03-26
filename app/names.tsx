@@ -11,6 +11,7 @@ import {
   SafeAreaView,
   Platform,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -22,6 +23,7 @@ import Colors from '../constants/Colors';
 import { useNameStatus } from '../hooks/useNameStatus';
 import { useAINames } from '../hooks/useAINames';
 import { FEATURES } from '../utils/appConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Get screen dimensions
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -36,70 +38,22 @@ type NameType = {
   gender: 'boy' | 'girl' | 'unisex' | 'any';
 };
 
-// Dummy data for demonstration
-const generateDummyNames = (lastName: string, gender: 'boy' | 'girl' | 'any' = 'any', count = 20): NameType[] => {
-  const nameOptions = [
-    // Boy names
-    { name: 'Oliver', meaning: 'Olive tree', origin: 'Latin', gender: 'boy' as const },
-    { name: 'Liam', meaning: 'Strong-willed warrior', origin: 'Irish', gender: 'boy' as const },
-    { name: 'Noah', meaning: 'Rest, comfort', origin: 'Hebrew', gender: 'boy' as const },
-    { name: 'Ethan', meaning: 'Strong, enduring', origin: 'Hebrew', gender: 'boy' as const },
-    { name: 'Lucas', meaning: 'Light', origin: 'Latin', gender: 'boy' as const },
-    { name: 'Mason', meaning: 'Stone worker', origin: 'English', gender: 'boy' as const },
-    
-    // Girl names
-    { name: 'Emma', meaning: 'Universal', origin: 'Germanic', gender: 'girl' as const },
-    { name: 'Olivia', meaning: 'Olive tree', origin: 'Latin', gender: 'girl' as const },
-    { name: 'Isabella', meaning: 'Pledged to God', origin: 'Hebrew', gender: 'girl' as const },
-    { name: 'Sophia', meaning: 'Wisdom', origin: 'Greek', gender: 'girl' as const },
-    { name: 'Charlotte', meaning: 'Free person', origin: 'French', gender: 'girl' as const },
-    { name: 'Amelia', meaning: 'Work', origin: 'Germanic', gender: 'girl' as const },
-    
-    // Unisex names
-    { name: 'Avery', meaning: 'Ruler of the elves', origin: 'English', gender: 'unisex' as const },
-    { name: 'Jordan', meaning: 'Flowing down', origin: 'Hebrew', gender: 'unisex' as const },
-    { name: 'Riley', meaning: 'Valiant', origin: 'Irish', gender: 'unisex' as const },
-    { name: 'Morgan', meaning: 'Sea-born', origin: 'Welsh', gender: 'unisex' as const },
-    { name: 'Taylor', meaning: 'Tailor', origin: 'English', gender: 'unisex' as const },
-    { name: 'Alex', meaning: 'Defender', origin: 'Greek', gender: 'unisex' as const },
-  ];
-
-  // Filter names by gender if specified
-  const filteredNames = gender === 'any' 
-    ? nameOptions 
-    : nameOptions.filter(name => name.gender === gender || name.gender === 'unisex');
-    
-  // Shuffle the filtered array to get random names
-  const shuffled = [...filteredNames]
-    .sort(() => Math.random() - 0.5)
-    .slice(0, count);
-  
-  const result: NameType[] = [];
-  
-  for (let i = 0; i < Math.min(count, shuffled.length); i++) {
-    result.push({
-      firstName: shuffled[i].name,
-      lastName: lastName || '',
-      meaning: shuffled[i].meaning,
-      origin: shuffled[i].origin,
-      gender: shuffled[i].gender,
-    });
-  }
-  
-  return result;
-};
+// Storage keys for session persistence
+const CURRENT_SEARCH_KEY = 'zuzu_current_search';
+const CURRENT_NAMES_KEY = 'zuzu_current_names';
+const CURRENT_INDEX_KEY = 'zuzu_current_index';
 
 export default function NamesScreen() {
   const params = useLocalSearchParams<{ 
     lastName: string; 
     gender: 'boy' | 'girl' | 'any'; 
     searchQuery: string;
-    useAI: string;
+    newSearch: string; // Flag to indicate if this is a new search
   }>();
+  const newSearch = params.newSearch === 'true';
   const lastName = params.lastName || '';
   const gender = (params.gender || 'any') as 'boy' | 'girl' | 'any';
   const searchQuery = params.searchQuery || '';
-  const useAI = params.useAI === 'true' && FEATURES.AI_NAME_GENERATION;
   const insets = useSafeAreaInsets();
   
   // Use the useNameStatus hook for state management and persistence
@@ -110,6 +64,9 @@ export default function NamesScreen() {
   const [names, setNames] = useState<NameType[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoadingNames, setIsLoadingNames] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [hasInitiatedSearch, setHasInitiatedSearch] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
   
   const position = useRef(new Animated.ValueXY()).current;
   
@@ -120,72 +77,196 @@ export default function NamesScreen() {
   // Create a ref to store the names array so it's accessible in the panResponder
   const namesRef = useRef<NameType[]>([]);
   
+  // Add a flag to prevent multiple swipes from processing simultaneously
+  const [isProcessingSwipe, setIsProcessingSwipe] = useState(false);
+  
   useEffect(() => {
     // Store names in the ref whenever it changes
     namesRef.current = names;
     console.log(`Names ref updated with ${namesRef.current.length} names`);
   }, [names]);
   
+  // Load saved search session on first mount
   useEffect(() => {
-    // Generate names when the component mounts
-    console.log("Generating names with:", { lastName, gender, searchQuery, useAI });
+    async function loadSavedSession() {
+      try {
+        // Check if we're forcing a new search
+        if (newSearch) {
+          // Clear previous session data and start fresh
+          await AsyncStorage.multiRemove([CURRENT_SEARCH_KEY, CURRENT_NAMES_KEY, CURRENT_INDEX_KEY]);
+          console.log("Starting new search, cleared previous session");
+          setHasInitiatedSearch(true);
+          return;
+        }
+        
+        // First check if there's a search in progress
+        const savedSearchJSON = await AsyncStorage.getItem(CURRENT_SEARCH_KEY);
+        
+        if (savedSearchJSON) {
+          const savedSearch = JSON.parse(savedSearchJSON);
+          console.log("Found saved search:", savedSearch);
+          
+          // If there are route params, they take precedence
+          if (lastName || gender !== 'any' || searchQuery) {
+            console.log("Using route params over saved search");
+            setHasInitiatedSearch(true);
+            return;
+          }
+          
+          // Load saved names and index
+          const savedNamesJSON = await AsyncStorage.getItem(CURRENT_NAMES_KEY);
+          const savedIndexString = await AsyncStorage.getItem(CURRENT_INDEX_KEY);
+          
+          if (savedNamesJSON && savedIndexString) {
+            const savedNames = JSON.parse(savedNamesJSON);
+            const savedIndex = parseInt(savedIndexString, 10);
+            
+            console.log(`Restoring saved session: ${savedNames.length} names, index ${savedIndex}`);
+            
+            // Restore the saved state
+            setNames(savedNames);
+            setCurrentIndex(savedIndex);
+            namesRef.current = savedNames;
+            setIsLoadingNames(false);
+            // Only set hasInitiatedSearch to true if we have explicit search parameters
+            // or if this is a resumed session from a previous explicit search
+            const hasExplicitSearch = 
+              lastName !== '' || 
+              gender !== 'any' || 
+              searchQuery !== '' || 
+              savedSearch.lastName !== '' || 
+              savedSearch.gender !== 'any' || 
+              savedSearch.searchQuery !== '';
+            
+            if (hasExplicitSearch) {
+              setHasInitiatedSearch(true);
+            } else {
+              console.log("Restored empty search session, not triggering name generation");
+              setHasInitiatedSearch(false);
+            }
+          } else {
+            console.log("Found saved search but no saved names/index, starting fresh");
+            // Only set hasInitiatedSearch if we have explicit search parameters
+            setHasInitiatedSearch(lastName !== '' || gender !== 'any' || searchQuery !== '');
+          }
+        } else {
+          // No saved search, check if we have route params
+          if (lastName || gender !== 'any' || searchQuery) {
+            console.log("No saved search, but found route params");
+            setHasInitiatedSearch(true);
+          } else {
+            console.log("No saved search or route params, showing placeholder");
+            setIsLoadingNames(false);
+            setHasInitiatedSearch(false);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading saved session:", error);
+        // If there's an error, default to the normal flow
+        if (lastName || gender !== 'any' || searchQuery) {
+          setHasInitiatedSearch(true);
+        } else {
+          setIsLoadingNames(false);
+          setHasInitiatedSearch(false);
+        }
+      }
+    }
+    
+    loadSavedSession();
+  }, [lastName, gender, searchQuery, newSearch]);
+  
+  // Save the current search between sessions
+  useEffect(() => {
+    if (!hasInitiatedSearch || names.length === 0) return;
+    
+    async function saveCurrentSession() {
+      try {
+        const searchParams = { lastName, gender, searchQuery };
+        
+        // Only save if we have at least one meaningful search parameter
+        const hasSearchParams = 
+          lastName !== '' || 
+          gender !== 'any' || 
+          searchQuery !== '';
+          
+        if (!hasSearchParams) {
+          console.log("No meaningful search parameters, skipping session save");
+          return;
+        }
+        
+        await AsyncStorage.setItem(CURRENT_SEARCH_KEY, JSON.stringify(searchParams));
+        await AsyncStorage.setItem(CURRENT_NAMES_KEY, JSON.stringify(names));
+        await AsyncStorage.setItem(CURRENT_INDEX_KEY, currentIndex.toString());
+        console.log(`Saved current session: search params, ${names.length} names, index ${currentIndex}`);
+      } catch (error) {
+        console.error("Error saving current session:", error);
+      }
+    }
+    
+    saveCurrentSession();
+  }, [hasInitiatedSearch, names, currentIndex, lastName, gender, searchQuery]);
+  
+  useEffect(() => {
+    // Generate names when the component mounts and there's a search to perform
+    if (!hasInitiatedSearch) {
+      console.log("No search initiated, skipping name generation");
+      return;
+    }
+    
+    // If we have names, don't regenerate them
+    if (names.length > 0) {
+      console.log("Using existing names, not generating new ones");
+      return;
+    }
+    
+    console.log("Generating names with:", { lastName, gender, searchQuery });
     setIsLoadingNames(true);
+    setError(null);
     
     async function generateNames() {
       try {
-        let generatedNames: NameType[] = [];
+        // Use AI to generate names
+        console.log("Generating AI names");
+        const aiNames = await fetchAINames({
+          lastName,
+          gender,
+          searchQuery,
+          count: 20
+        });
         
-        if (useAI) {
-          // Use AI to generate names
-          console.log("Using AI to generate names");
-          const aiNames = await fetchAINames({
-            lastName,
-            gender,
-            searchQuery,
-            count: 20
-          });
-          
-          generatedNames = aiNames;
-          console.log(`Generated ${generatedNames.length} names using AI`);
-        } else {
-          // Use dummy names
-          console.log("Using dummy names");
-          generatedNames = generateDummyNames(lastName, gender);
-          console.log(`Generated ${generatedNames.length} dummy names`);
-        }
-        
-        if (generatedNames.length === 0) {
+        if (aiNames.length === 0) {
           console.error("Generated names array is empty");
-          // Fallback to dummy names if AI failed to generate any
-          if (useAI) {
-            console.log("Falling back to dummy names");
-            generatedNames = generateDummyNames(lastName, gender);
-          }
+          setError("No names were generated. Please try again or change your search criteria.");
+          setIsLoadingNames(false);
+          return;
         }
         
         // Set names in state and immediately update the ref
-        setNames(generatedNames);
-        namesRef.current = generatedNames;
-        console.log(`Names ref set directly with ${generatedNames.length} names`);
+        setNames(aiNames);
+        namesRef.current = aiNames;
+        console.log(`Generated ${aiNames.length} AI names`);
         
       } catch (error) {
         console.error("Error generating names:", error);
-        // Fallback to dummy names in case of error
-        const dummyNames = generateDummyNames(lastName, gender);
-        setNames(dummyNames);
-        namesRef.current = dummyNames;
+        setError(`Error generating names. Please check your connection and try again.`);
       } finally {
         setIsLoadingNames(false);
       }
     }
     
     generateNames();
-  }, [lastName, gender, searchQuery, useAI, fetchAINames]);
+  }, [hasInitiatedSearch, lastName, gender, searchQuery, fetchAINames]);
   
   // Update panResponder for better swipe detection and handling with async functions
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => {
+        // Skip gesture detection if already processing a swipe
+        if (isProcessingSwipe) {
+          console.log("Ignoring gesture - already processing a swipe");
+          return false;
+        }
+        
         // Use namesRef.current instead of names to ensure we have the latest value
         const currentNames = namesRef.current;
         // Check if we have a valid name at the current index
@@ -209,6 +290,13 @@ export default function NamesScreen() {
       },
       onPanResponderRelease: (_, gesture) => {
         console.log("Gesture released:", gesture.dx, gesture.dy);
+        
+        // Skip if already processing a swipe
+        if (isProcessingSwipe) {
+          console.log("Ignoring gesture release - already processing a swipe");
+          resetPosition();
+          return;
+        }
         
         // Use namesRef.current to ensure we have the latest value
         const currentNames = namesRef.current;
@@ -279,170 +367,311 @@ export default function NamesScreen() {
     }).start();
   };
   
-  // Fix swipe functions to provide cleaner transitions
+  // Add a function to check if we've reached the end of cards
+  const checkEndOfCards = useCallback((indexValue: number) => {
+    console.log(`Checking end of cards: index=${indexValue}, names.length=${names.length}`);
+    
+    // Only show the modal when we've reached the LAST card (not just any card)
+    if (indexValue === names.length - 1) {
+      console.log("Reached end of cards, showing completion modal");
+      setShowCompletionModal(true);
+    }
+  }, [names.length]);
+  
+  // Common function to update session state after each swipe
+  const updateSessionAfterSwipe = async (indexToUpdate: number) => {
+    try {
+      // Update current index in AsyncStorage
+      await AsyncStorage.setItem(CURRENT_INDEX_KEY, (indexToUpdate + 1).toString());
+      console.log(`Updated session index to ${indexToUpdate + 1}`);
+      
+      // Check if we've reached the end of cards after updating the index
+      checkEndOfCards(indexToUpdate);
+      
+      // No matter what, don't clear the session - let the user see all cards
+      // and only clear when they explicitly start a new search
+    } catch (error) {
+      console.error("Error updating session after swipe:", error);
+    }
+  };
+
   const swipeRight = async () => {
-    // Capture current index in a local variable to ensure we use the correct value
-    const indexToUpdate = currentIndex;
-    // Use namesRef.current to get the most up-to-date names array
-    const currentNameObj = namesRef.current[indexToUpdate];
-    
-    console.log(`swipeRight called for index ${indexToUpdate}, names length: ${namesRef.current.length}`);
-    
-    if (!currentNameObj) {
-      console.error(`No name found at index ${indexToUpdate}`);
+    // Prevent multiple swipes from processing at once
+    if (isProcessingSwipe) {
+      console.log("Ignoring swipe - already processing another swipe");
       return;
     }
     
-    // Make a local copy of the name to ensure it doesn't change during async operations
-    const nameToSave = {...currentNameObj};
-    
-    console.log(`Processing swipe right for name: ${nameToSave.firstName}`);
-    
     try {
-      // Save to liked list with status 'liked' and await the completion
-      console.log(`Initiating save for "${nameToSave.firstName}" to liked list`);
-      await saveNameStatus(nameToSave, 'liked');
-      console.log(`Successfully saved "${nameToSave.firstName}" to liked list`);
-    } catch (error) {
-      console.error(`Failed to save "${nameToSave.firstName}" to liked list:`, error);
-      // Continue with animation even if save fails - UX should not be interrupted
-    }
-
-    // Animate the card off-screen with a smooth motion
-    console.log(`Starting right swipe animation for "${nameToSave.firstName}"`);
-    Animated.timing(position, {
-      toValue: { x: SCREEN_WIDTH * 1.5, y: 0 },
-      duration: 300, // Slightly faster for a cleaner transition
-      useNativeDriver: false,
-      easing: Easing.out(Easing.ease), // Add easing for more natural movement
-    }).start(() => {
-      // Only update state and reset position after animation completes
-      console.log(`Right swipe animation completed for "${nameToSave.firstName}", advancing from index:`, indexToUpdate);
+      setIsProcessingSwipe(true);
       
-      // Reset position immediately to avoid visual glitches
-      position.setValue({ x: 0, y: 0 });
+      // Capture current index in a local variable to ensure we use the correct value
+      const indexToUpdate = currentIndex;
+      // Use namesRef.current to get the most up-to-date names array
+      const currentNameObj = namesRef.current[indexToUpdate];
       
-      // Use a slight delay before updating the index to avoid animation jank
-      setTimeout(() => {
-        // Important: Use the state updater form to ensure we're working with the latest state
-        setCurrentIndex(prevIndex => {
-          console.log("Updating index from", prevIndex, "to", prevIndex + 1);
-          return prevIndex + 1;
-        });
+      console.log(`swipeRight called for index ${indexToUpdate}, names length: ${namesRef.current.length}`);
+      
+      if (!currentNameObj) {
+        console.error(`No name found at index ${indexToUpdate}`);
+        setIsProcessingSwipe(false);
+        return;
+      }
+      
+      // Make a local copy of the name to ensure it doesn't change during async operations
+      const nameToSave = {...currentNameObj};
+      
+      console.log(`Processing swipe right for name: ${nameToSave.firstName}`);
+      
+      // Define the success flag to track if save completed
+      let saveSuccessful = false;
+      
+      try {
+        // Save to liked list with status 'liked' and await the completion
+        console.log(`Initiating save for "${nameToSave.firstName}" to liked list`);
+        await saveNameStatus(nameToSave, 'liked');
+        console.log(`Successfully saved "${nameToSave.firstName}" to liked list`);
         
-        console.log("Card position reset, ready for next card");
-      }, 50); // Small delay to ensure smooth transition
-    });
+        // Update session state after successful save
+        await updateSessionAfterSwipe(indexToUpdate);
+        
+        // Mark save as successful
+        saveSuccessful = true;
+      } catch (error) {
+        console.error(`Failed to save "${nameToSave.firstName}" to liked list:`, error);
+        // Continue with animation even if save fails - UX should not be interrupted
+      }
+  
+      // Check if we've reached the end of cards before starting animation
+      checkEndOfCards(indexToUpdate);
+  
+      // Animate the card off-screen with a smooth motion
+      console.log(`Starting right swipe animation for "${nameToSave.firstName}"`);
+      Animated.timing(position, {
+        toValue: { x: SCREEN_WIDTH * 1.5, y: 0 },
+        duration: 300, // Slightly faster for a cleaner transition
+        useNativeDriver: false,
+        easing: Easing.out(Easing.ease), // Add easing for more natural movement
+      }).start(() => {
+        // Only update state and reset position after animation completes
+        console.log(`Right swipe animation completed for "${nameToSave.firstName}", advancing from index:`, indexToUpdate);
+        
+        // Reset position immediately to avoid visual glitches
+        position.setValue({ x: 0, y: 0 });
+        
+        // Only increment the index if save was successful
+        if (saveSuccessful) {
+          // Use a slight delay before updating the index to avoid animation jank
+          setTimeout(() => {
+            // Important: Use the state updater form to ensure we're working with the latest state
+            setCurrentIndex(prevIndex => {
+              console.log("Updating index from", prevIndex, "to", prevIndex + 1);
+              return prevIndex + 1;
+            });
+            
+            // Reset the processing flag
+            setIsProcessingSwipe(false);
+            console.log("Card position reset, ready for next card");
+            
+            // Check if we've reached the end of cards
+            checkEndOfCards(indexToUpdate);
+          }, 50); // Small delay to ensure smooth transition
+        } else {
+          // Reset the processing flag even if save failed
+          setIsProcessingSwipe(false);
+          console.log("Card position reset, but index not incremented due to save failure");
+        }
+      });
+    } catch (error) {
+      console.error("Error in swipe right:", error);
+      setIsProcessingSwipe(false);
+    }
   };
   
   const swipeLeft = async () => {
-    // Capture current index in a local variable to ensure we use the correct value
-    const indexToUpdate = currentIndex;
-    // Use namesRef.current to get the most up-to-date names array
-    const currentNameObj = namesRef.current[indexToUpdate];
-    
-    console.log(`swipeLeft called for index ${indexToUpdate}, names length: ${namesRef.current.length}`);
-    
-    if (!currentNameObj) {
-      console.error(`No name found at index ${indexToUpdate}`);
+    // Prevent multiple swipes from processing at once
+    if (isProcessingSwipe) {
+      console.log("Ignoring swipe - already processing another swipe");
       return;
     }
     
-    // Make a local copy of the name to ensure it doesn't change during async operations
-    const nameToSave = {...currentNameObj};
-    
-    console.log(`Processing swipe left for name: ${nameToSave.firstName}`);
-    
     try {
-      // Save to disliked list with status 'disliked' and await the completion
-      console.log(`Initiating save for "${nameToSave.firstName}" to disliked list`);
-      await saveNameStatus(nameToSave, 'disliked');
-      console.log(`Successfully saved "${nameToSave.firstName}" to disliked list`);
-    } catch (error) {
-      console.error(`Failed to save "${nameToSave.firstName}" to disliked list:`, error);
-      // Continue with animation even if save fails - UX should not be interrupted
-    }
-
-    // Animate the card off-screen with a smooth motion
-    console.log(`Starting left swipe animation for "${nameToSave.firstName}"`);
-    Animated.timing(position, {
-      toValue: { x: -SCREEN_WIDTH * 1.5, y: 0 },
-      duration: 300, // Slightly faster for a cleaner transition
-      useNativeDriver: false,
-      easing: Easing.out(Easing.ease), // Add easing for more natural movement
-    }).start(() => {
-      // Only update state and reset position after animation completes
-      console.log(`Left swipe animation completed for "${nameToSave.firstName}", advancing from index:`, indexToUpdate);
+      setIsProcessingSwipe(true);
       
-      // Reset position immediately to avoid visual glitches
-      position.setValue({ x: 0, y: 0 });
+      // Capture current index in a local variable to ensure we use the correct value
+      const indexToUpdate = currentIndex;
+      // Use namesRef.current to get the most up-to-date names array
+      const currentNameObj = namesRef.current[indexToUpdate];
       
-      // Use a slight delay before updating the index to avoid animation jank
-      setTimeout(() => {
-        // Important: Use the state updater form to ensure we're working with the latest state
-        setCurrentIndex(prevIndex => {
-          console.log("Updating index from", prevIndex, "to", prevIndex + 1);
-          return prevIndex + 1;
-        });
+      console.log(`swipeLeft called for index ${indexToUpdate}, names length: ${namesRef.current.length}`);
+      
+      if (!currentNameObj) {
+        console.error(`No name found at index ${indexToUpdate}`);
+        setIsProcessingSwipe(false);
+        return;
+      }
+      
+      // Make a local copy of the name to ensure it doesn't change during async operations
+      const nameToSave = {...currentNameObj};
+      
+      console.log(`Processing swipe left for name: ${nameToSave.firstName}`);
+      
+      // Define the success flag to track if save completed
+      let saveSuccessful = false;
+      
+      try {
+        // Save to disliked list with status 'disliked' and await the completion
+        console.log(`Initiating save for "${nameToSave.firstName}" to disliked list`);
+        await saveNameStatus(nameToSave, 'disliked');
+        console.log(`Successfully saved "${nameToSave.firstName}" to disliked list`);
         
-        console.log("Card position reset, ready for next card");
-      }, 50); // Small delay to ensure smooth transition
-    });
+        // Update session state after successful save
+        await updateSessionAfterSwipe(indexToUpdate);
+        
+        // Mark save as successful
+        saveSuccessful = true;
+      } catch (error) {
+        console.error(`Failed to save "${nameToSave.firstName}" to disliked list:`, error);
+        // Continue with animation even if save fails - UX should not be interrupted
+      }
+  
+      // Check if we've reached the end of cards before starting animation
+      checkEndOfCards(indexToUpdate);
+  
+      // Animate the card off-screen with a smooth motion
+      console.log(`Starting left swipe animation for "${nameToSave.firstName}"`);
+      Animated.timing(position, {
+        toValue: { x: -SCREEN_WIDTH * 1.5, y: 0 },
+        duration: 300, // Slightly faster for a cleaner transition
+        useNativeDriver: false,
+        easing: Easing.out(Easing.ease), // Add easing for more natural movement
+      }).start(() => {
+        // Only update state and reset position after animation completes
+        console.log(`Left swipe animation completed for "${nameToSave.firstName}", advancing from index:`, indexToUpdate);
+        
+        // Reset position immediately to avoid visual glitches
+        position.setValue({ x: 0, y: 0 });
+        
+        // Only increment the index if save was successful
+        if (saveSuccessful) {
+          // Use a slight delay before updating the index to avoid animation jank
+          setTimeout(() => {
+            // Important: Use the state updater form to ensure we're working with the latest state
+            setCurrentIndex(prevIndex => {
+              console.log("Updating index from", prevIndex, "to", prevIndex + 1);
+              return prevIndex + 1;
+            });
+            
+            // Reset the processing flag
+            setIsProcessingSwipe(false);
+            console.log("Card position reset, ready for next card");
+            
+            // Check if we've reached the end of cards
+            checkEndOfCards(indexToUpdate);
+          }, 50); // Small delay to ensure smooth transition
+        } else {
+          // Reset the processing flag even if save failed
+          setIsProcessingSwipe(false);
+          console.log("Card position reset, but index not incremented due to save failure");
+        }
+      });
+    } catch (error) {
+      console.error("Error in swipe left:", error);
+      setIsProcessingSwipe(false);
+    }
   };
   
   const swipeUp = async () => {
-    // Capture current index in a local variable to ensure we use the correct value
-    const indexToUpdate = currentIndex;
-    // Use namesRef.current to get the most up-to-date names array
-    const currentNameObj = namesRef.current[indexToUpdate];
-    
-    console.log(`swipeUp called for index ${indexToUpdate}, names length: ${namesRef.current.length}`);
-    
-    if (!currentNameObj) {
-      console.error(`No name found at index ${indexToUpdate}`);
+    // Prevent multiple swipes from processing at once
+    if (isProcessingSwipe) {
+      console.log("Ignoring swipe - already processing another swipe");
       return;
     }
     
-    // Make a local copy of the name to ensure it doesn't change during async operations
-    const nameToSave = {...currentNameObj};
-    
-    console.log(`Processing swipe up for name: ${nameToSave.firstName}`);
-    
     try {
-      // Save to maybe list with status 'maybe' and await the completion
-      console.log(`Initiating save for "${nameToSave.firstName}" to maybe list`);
-      await saveNameStatus(nameToSave, 'maybe');
-      console.log(`Successfully saved "${nameToSave.firstName}" to maybe list`);
-    } catch (error) {
-      console.error(`Failed to save "${nameToSave.firstName}" to maybe list:`, error);
-      // Continue with animation even if save fails - UX should not be interrupted
-    }
-
-    // Animate the card off-screen with a smooth motion
-    console.log(`Starting up swipe animation for "${nameToSave.firstName}"`);
-    Animated.timing(position, {
-      toValue: { x: 0, y: -SCREEN_WIDTH * 1.5 },
-      duration: 300, // Slightly faster for a cleaner transition
-      useNativeDriver: false,
-      easing: Easing.out(Easing.ease), // Add easing for more natural movement
-    }).start(() => {
-      // Only update state and reset position after animation completes
-      console.log(`Up swipe animation completed for "${nameToSave.firstName}", advancing from index:`, indexToUpdate);
+      setIsProcessingSwipe(true);
       
-      // Reset position immediately to avoid visual glitches
-      position.setValue({ x: 0, y: 0 });
+      // Capture current index in a local variable to ensure we use the correct value
+      const indexToUpdate = currentIndex;
+      // Use namesRef.current to get the most up-to-date names array
+      const currentNameObj = namesRef.current[indexToUpdate];
       
-      // Use a slight delay before updating the index to avoid animation jank
-      setTimeout(() => {
-        // Important: Use the state updater form to ensure we're working with the latest state
-        setCurrentIndex(prevIndex => {
-          console.log("Updating index from", prevIndex, "to", prevIndex + 1);
-          return prevIndex + 1;
-        });
+      console.log(`swipeUp called for index ${indexToUpdate}, names length: ${namesRef.current.length}`);
+      
+      if (!currentNameObj) {
+        console.error(`No name found at index ${indexToUpdate}`);
+        setIsProcessingSwipe(false);
+        return;
+      }
+      
+      // Make a local copy of the name to ensure it doesn't change during async operations
+      const nameToSave = {...currentNameObj};
+      
+      console.log(`Processing swipe up for name: ${nameToSave.firstName}`);
+      
+      // Define the success flag to track if save completed
+      let saveSuccessful = false;
+      
+      try {
+        // Save to maybe list with status 'maybe' and await the completion
+        console.log(`Initiating save for "${nameToSave.firstName}" to maybe list`);
+        await saveNameStatus(nameToSave, 'maybe');
+        console.log(`Successfully saved "${nameToSave.firstName}" to maybe list`);
         
-        console.log("Card position reset, ready for next card");
-      }, 50); // Small delay to ensure smooth transition
-    });
+        // Update session state after successful save
+        await updateSessionAfterSwipe(indexToUpdate);
+        
+        // Mark save as successful
+        saveSuccessful = true;
+      } catch (error) {
+        console.error(`Failed to save "${nameToSave.firstName}" to maybe list:`, error);
+        // Continue with animation even if save fails - UX should not be interrupted
+      }
+  
+      // Check if we've reached the end of cards before starting animation
+      checkEndOfCards(indexToUpdate);
+  
+      // Animate the card off-screen with a smooth motion
+      console.log(`Starting up swipe animation for "${nameToSave.firstName}"`);
+      Animated.timing(position, {
+        toValue: { x: 0, y: -SCREEN_WIDTH * 1.5 },
+        duration: 300, // Slightly faster for a cleaner transition
+        useNativeDriver: false,
+        easing: Easing.out(Easing.ease), // Add easing for more natural movement
+      }).start(() => {
+        // Only update state and reset position after animation completes
+        console.log(`Up swipe animation completed for "${nameToSave.firstName}", advancing from index:`, indexToUpdate);
+        
+        // Reset position immediately to avoid visual glitches
+        position.setValue({ x: 0, y: 0 });
+        
+        // Only increment the index if save was successful
+        if (saveSuccessful) {
+          // Use a slight delay before updating the index to avoid animation jank
+          setTimeout(() => {
+            // Important: Use the state updater form to ensure we're working with the latest state
+            setCurrentIndex(prevIndex => {
+              console.log("Updating index from", prevIndex, "to", prevIndex + 1);
+              return prevIndex + 1;
+            });
+            
+            // Reset the processing flag
+            setIsProcessingSwipe(false);
+            console.log("Card position reset, ready for next card");
+            
+            // Check if we've reached the end of cards
+            checkEndOfCards(indexToUpdate);
+          }, 50); // Small delay to ensure smooth transition
+        } else {
+          // Reset the processing flag even if save failed
+          setIsProcessingSwipe(false);
+          console.log("Card position reset, but index not incremented due to save failure");
+        }
+      });
+    } catch (error) {
+      console.error("Error in swipe up:", error);
+      setIsProcessingSwipe(false);
+    }
   };
 
   // Button animation functions
@@ -468,6 +697,12 @@ export default function NamesScreen() {
   const handleLike = () => {
     console.log("Like button pressed");
     
+    // Check if already processing a swipe
+    if (isProcessingSwipe) {
+      console.log("Like button ignored - already processing a swipe");
+      return;
+    }
+    
     // Check for a valid name at current index using the ref
     if (!namesRef.current[currentIndex]) {
       console.log("Like ignored - no valid name at current index");
@@ -487,6 +722,12 @@ export default function NamesScreen() {
   const handleMaybe = () => {
     console.log("Maybe button pressed");
     
+    // Check if already processing a swipe
+    if (isProcessingSwipe) {
+      console.log("Maybe button ignored - already processing a swipe");
+      return;
+    }
+    
     // Check for a valid name at current index using the ref
     if (!namesRef.current[currentIndex]) {
       console.log("Maybe ignored - no valid name at current index");
@@ -504,6 +745,12 @@ export default function NamesScreen() {
 
   const handleDislike = () => {
     console.log("Dislike button pressed");
+    
+    // Check if already processing a swipe
+    if (isProcessingSwipe) {
+      console.log("Dislike button ignored - already processing a swipe");
+      return;
+    }
     
     // Check for a valid name at current index using the ref
     if (!namesRef.current[currentIndex]) {
@@ -524,29 +771,60 @@ export default function NamesScreen() {
     router.push('/likes');
   };
   
-  const refreshNames = useCallback(() => {
-    // Create a helper function to check if a name is in the seen names list
-    const isNameSeen = (nameToCheck: NameType) => {
-      return [...likedNames, ...dislikedNames, ...maybeNames]
-        .some(existingName => 
-          existingName.firstName.toLowerCase() === nameToCheck.firstName.toLowerCase() &&
-          ((!existingName.lastName && !nameToCheck.lastName) || 
-           (existingName.lastName?.toLowerCase() === nameToCheck.lastName?.toLowerCase()))
-        );
-    };
+  const refreshNames = useCallback(async () => {
+    console.log("Refreshing names with same parameters:", { lastName, gender, searchQuery });
     
-    // Generate new names that haven't been seen
-    const newNames = generateDummyNames(lastName, gender).filter(name => !isNameSeen(name));
+    // Reset current state
+    setNames([]);
+    setCurrentIndex(0);
+    setIsLoadingNames(true);
+    setError(null);
     
-    // Make sure we have at least some names, even if they've been seen before
-    if (newNames.length === 0) {
-      setNames(generateDummyNames(lastName, gender));
-    } else {
-      setNames(newNames);
+    // Clear existing session data to force a fresh generation
+    try {
+      await AsyncStorage.multiRemove([CURRENT_NAMES_KEY, CURRENT_INDEX_KEY]);
+      console.log("Cleared previous names data for refresh");
+    } catch (error) {
+      console.error("Error clearing session data:", error);
     }
     
-    setCurrentIndex(0);
-  }, [likedNames, dislikedNames, maybeNames, lastName, gender]);
+    // Generate new names
+    try {
+      // Use AI to generate new names
+      console.log("Generating new AI names with same parameters");
+      const aiNames = await fetchAINames({
+        lastName,
+        gender,
+        searchQuery,
+        count: 20
+      });
+      
+      if (aiNames.length === 0) {
+        console.error("Generated names array is empty");
+        setError("No names were generated. Please try again or change your search criteria.");
+        setIsLoadingNames(false);
+        return;
+      }
+      
+      // Set names in state and immediately update the ref
+      setNames(aiNames);
+      namesRef.current = aiNames;
+      console.log(`Generated ${aiNames.length} new AI names`);
+      
+      // Save the new session
+      const searchParams = { lastName, gender, searchQuery };
+      await AsyncStorage.setItem(CURRENT_SEARCH_KEY, JSON.stringify(searchParams));
+      await AsyncStorage.setItem(CURRENT_NAMES_KEY, JSON.stringify(aiNames));
+      await AsyncStorage.setItem(CURRENT_INDEX_KEY, "0");
+      console.log("Saved refreshed session data");
+      
+    } catch (error) {
+      console.error("Error refreshing names:", error);
+      setError(`Error generating names. Please check your connection and try again.`);
+    } finally {
+      setIsLoadingNames(false);
+    }
+  }, [lastName, gender, searchQuery, fetchAINames]);
   
   const goToNewSearch = () => {
     router.push('/home');
@@ -567,27 +845,54 @@ export default function NamesScreen() {
   const renderNoMoreCards = () => (
     <View style={styles.noMoreCardsContainer}>
       <Text style={styles.noMoreCardsText}>No more names</Text>
-      <TouchableOpacity style={styles.refreshButton} onPress={refreshNames}>
-        <Text style={styles.refreshButtonText}>Generate More Names</Text>
+      <TouchableOpacity style={styles.actionButton} onPress={refreshNames}>
+        <Text style={styles.actionButtonText}>Generate More Names</Text>
       </TouchableOpacity>
     </View>
   );
   
-  // Render multiple cards in a stack like Tinder
+  // Add a placeholder component for users who haven't initiated a search
+  const renderNoSearchPlaceholder = () => (
+    <View style={styles.noMoreCardsContainer}>
+      <Ionicons name="search" size={60} color="#FF5BA1" style={styles.placeholderIcon} />
+      <Text style={styles.noMoreCardsText}>Search to start swiping!</Text>
+      <TouchableOpacity style={styles.actionButton} onPress={goToNewSearch}>
+        <Text style={styles.actionButtonText}>Search for Names</Text>
+      </TouchableOpacity>
+    </View>
+  );
+  
+  // Update renderCards to include the placeholder state
   const renderCards = () => {
+    // If user hasn't initiated a search, show placeholder
+    if (!hasInitiatedSearch) {
+      return renderNoSearchPlaceholder();
+    }
+    
     // Show a loading indicator when names are loading
     if (isLoadingNames) {
       return (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FF5BA1" />
           <Text style={styles.loadingText}>
-            {useAI ? 'Generating creative names with AI...' : 'Loading names...'}
+            Generating creative names with AI...
           </Text>
-          {useAI && (
-            <Text style={styles.aiSubtext}>
-              This may take a few moments
-            </Text>
-          )}
+          <Text style={styles.aiSubtext}>
+            This may take a few moments
+          </Text>
+        </View>
+      );
+    }
+    
+    // Show error message if there is one
+    if (error) {
+      return (
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={48} color="#FF5BA1" />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.actionButton} onPress={refreshNames}>
+            <Text style={styles.actionButtonText}>Try Again</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -596,9 +901,13 @@ export default function NamesScreen() {
     if (names.length === 0) {
       return (
         <View style={styles.noMoreCardsContainer}>
-          <Text style={styles.noMoreCardsText}>No names available</Text>
-          <TouchableOpacity style={styles.refreshButton} onPress={refreshNames}>
-            <Text style={styles.refreshButtonText}>Generate Names</Text>
+          <Ionicons name="alert-circle-outline" size={48} color="#FF5BA1" />
+          <Text style={styles.noMoreCardsText}>No names were found</Text>
+          <Text style={styles.placeholderSubtext}>
+            Try adjusting your search criteria to find beautiful baby names
+          </Text>
+          <TouchableOpacity style={styles.actionButton} onPress={goToNewSearch}>
+            <Text style={styles.actionButtonText}>Try a New Search</Text>
           </TouchableOpacity>
         </View>
       );
@@ -748,9 +1057,122 @@ export default function NamesScreen() {
     console.log(`Loaded ${names.length} names, current index: ${currentIndex}`);
   }, [names, currentIndex]);
   
+  // Add a useEffect to monitor liked, maybe, and disliked names and ensure session is synced
+  useEffect(() => {
+    // This effect runs whenever the name lists change
+    if (hasInitiatedSearch && names.length > 0) {
+      console.log(`Name lists changed: ${likedNames.length} liked, ${maybeNames.length} maybe, ${dislikedNames.length} disliked`);
+      
+      // Save the current session state to ensure it persists
+      const saveCurrentSessionState = async () => {
+        try {
+          if (currentIndex < names.length) {
+            const searchParams = { lastName, gender, searchQuery };
+            await AsyncStorage.setItem(CURRENT_SEARCH_KEY, JSON.stringify(searchParams));
+            await AsyncStorage.setItem(CURRENT_NAMES_KEY, JSON.stringify(names));
+            await AsyncStorage.setItem(CURRENT_INDEX_KEY, currentIndex.toString());
+            console.log(`Session saved after name list change: ${names.length} names, index ${currentIndex}`);
+          }
+        } catch (error) {
+          console.error("Error saving session after name list change:", error);
+        }
+      };
+      
+      saveCurrentSessionState();
+    }
+  }, [likedNames, maybeNames, dislikedNames, hasInitiatedSearch, names, currentIndex, lastName, gender, searchQuery]);
+  
+  // Add a cleanup handler to save session on unmount
+  useEffect(() => {
+    // Save the current session when component unmounts
+    return () => {
+      if (hasInitiatedSearch && names.length > 0 && currentIndex < names.length) {
+        console.log("Component unmounting, saving session state");
+        
+        // Use a synchronous version for cleanup
+        const saveSession = async () => {
+          try {
+            const searchParams = { lastName, gender, searchQuery };
+            await AsyncStorage.setItem(CURRENT_SEARCH_KEY, JSON.stringify(searchParams));
+            await AsyncStorage.setItem(CURRENT_NAMES_KEY, JSON.stringify(names));
+            await AsyncStorage.setItem(CURRENT_INDEX_KEY, currentIndex.toString());
+            console.log(`Saved session on unmount: ${names.length} names, index ${currentIndex}`);
+          } catch (error) {
+            console.error("Error saving session on unmount:", error);
+          }
+        };
+        
+        // Execute but don't wait for promise to complete - this is a best effort save
+        saveSession();
+      }
+    };
+  }, [hasInitiatedSearch, names, currentIndex, lastName, gender, searchQuery]);
+  
+  // Add modal render function
+  const renderCompletionModal = () => (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={showCompletionModal}
+      onRequestClose={() => setShowCompletionModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <TouchableOpacity 
+            style={styles.modalCloseButton}
+            onPress={() => setShowCompletionModal(false)}
+          >
+            <Ionicons name="close" size={24} color="#999" />
+          </TouchableOpacity>
+          
+          <Ionicons name="checkmark-circle" size={60} color="#FF5BA1" style={styles.modalIcon} />
+          <Text style={styles.modalTitle}>You've seen all names!</Text>
+          <Text style={styles.modalText}>What would you like to do next?</Text>
+          
+          <TouchableOpacity 
+            style={[styles.modalButton, { backgroundColor: '#FF5BA1' }]} 
+            onPress={() => {
+              setShowCompletionModal(false);
+              refreshNames();
+            }}
+          >
+            <Text style={styles.modalButtonText}>Refresh with Same Search</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.modalButton, { backgroundColor: '#3CA3FF', marginTop: 10 }]} 
+            onPress={() => {
+              setShowCompletionModal(false);
+              goToNewSearch();
+            }}
+          >
+            <Text style={styles.modalButtonText}>Try a New Search</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.modalButton, { backgroundColor: '#B799FF', marginTop: 10 }]} 
+            onPress={() => {
+              setShowCompletionModal(false);
+              goToMatches();
+            }}
+          >
+            <Text style={styles.modalButtonText}>View My Matches</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+  
+  // Add a function to get the current progress display
+  const getProgressText = useCallback(() => {
+    if (!names.length) return '';
+    return `${currentIndex + 1}/${names.length}`;
+  }, [currentIndex, names.length]);
+  
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
+      {renderCompletionModal()}
       <LinearGradient
         colors={[Colors.gradients.background[0], Colors.gradients.background[1]]}
         style={styles.background}
@@ -765,13 +1187,22 @@ export default function NamesScreen() {
               <Ionicons name="arrow-back" size={28} color="black" />
             </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={styles.headerIconButton} 
-              onPress={refreshNames}
-              activeOpacity={0.6}
-            >
-              <Ionicons name="sync" size={28} color="black" />
-            </TouchableOpacity>
+            <View style={styles.headerCenterContent}>
+              <TouchableOpacity 
+                style={styles.refreshButton} 
+                onPress={refreshNames}
+                activeOpacity={0.6}
+              >
+                <Ionicons name="sync" size={24} color="black" />
+                <Text style={styles.refreshButtonText}>Refresh</Text>
+              </TouchableOpacity>
+              
+              {hasInitiatedSearch && names.length > 0 && currentIndex < names.length && (
+                <View style={styles.progressContainer}>
+                  <Text style={styles.progressText}>{getProgressText()}</Text>
+                </View>
+              )}
+            </View>
             
             <TouchableOpacity 
               style={styles.headerIconButton} 
@@ -850,10 +1281,32 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
   },
-  headerText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+  headerCenterContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  refreshButtonText: {
+    color: 'black',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  progressContainer: {
+    marginTop: 6,
+  },
+  progressText: {
+    color: '#333',
+    fontSize: 12,
+    fontWeight: '600',
   },
   cardContainer: {
     flex: 1,
@@ -958,20 +1411,11 @@ const styles = StyleSheet.create({
   },
   noMoreCardsText: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#F39F86',
-    marginBottom: 20,
-  },
-  refreshButton: {
-    backgroundColor: '#F39F86',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
-  },
-  refreshButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    color: '#FF9B85',
+    textAlign: 'center',
+    marginVertical: 16,
+    paddingHorizontal: 20,
   },
   tabBarContainer: {
     position: 'absolute',
@@ -1017,5 +1461,109 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
     maxWidth: '80%',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#FF5BA1',
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  placeholderIcon: {
+    marginBottom: 24,
+    opacity: 0.7,
+  },
+  placeholderSubtext: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 24,
+    paddingHorizontal: 24,
+    lineHeight: 22,
+  },
+  findNamesButton: {
+    backgroundColor: '#FF5BA1',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginTop: 10,
+  },
+  findNamesButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+    width: '90%',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    padding: 5,
+    zIndex: 1,
+  },
+  modalIcon: {
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  modalButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  actionButton: {
+    backgroundColor: '#FF5BA1',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  actionButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 }); 

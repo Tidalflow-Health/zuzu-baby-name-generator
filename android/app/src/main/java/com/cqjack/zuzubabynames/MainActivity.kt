@@ -1,4 +1,4 @@
-package com.cqjack.expoappboilerplate
+package com.cqjack.zuzubabynames
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

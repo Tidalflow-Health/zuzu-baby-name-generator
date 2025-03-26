@@ -18,9 +18,6 @@ export const DEBUG_CONFIG = {
   
   // Delay between retry attempts in milliseconds
   RETRY_DELAY: 1000,
-  
-  // Use mock AI data instead of actual API calls
-  USE_MOCK_AI: true,
 };
 
 // Feature flags
@@ -31,6 +28,6 @@ export const FEATURES = {
   // Enable name suggestion features
   NAME_SUGGESTIONS: true,
   
-  // Enable AI-powered name generation
-  AI_NAME_GENERATION: false,
+  // AI-powered name generation is always enabled
+  AI_NAME_GENERATION: true,
 }; 

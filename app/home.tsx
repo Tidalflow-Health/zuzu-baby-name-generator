@@ -8,7 +8,6 @@ import {
   SafeAreaView,
   Image,
   Animated,
-  Switch,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,7 +17,11 @@ import { Ionicons } from '@expo/vector-icons';
 import BottomTabBar from './components/BottomTabBar';
 import Colors from '../constants/Colors';
 import { Link } from 'expo-router';
-import { FEATURES } from '../utils/appConfig';
+import { useAuth } from '../contexts/AuthContext';
+import { useNames } from '../hooks/useNames';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const ZUZU_PINK = '#FF5BA1'; // Adding Zuzu pink color constant
 
 export default function HomeScreen() {
   const [lastName, setLastName] = useState('');
@@ -27,12 +30,38 @@ export default function HomeScreen() {
   const [likedNames, setLikedNames] = useState([]);
   const [maybeNames, setMaybeNames] = useState([]);
   const [showLastNameInput, setShowLastNameInput] = useState(false);
-  const [useAI, setUseAI] = useState(FEATURES.AI_NAME_GENERATION);
+  const [syncStatus, setSyncStatus] = useState<string>('');
   const insets = useSafeAreaInsets();
+  const { session, isOnline } = useAuth();
+  const { pendingOperations, syncPendingOperations } = useNames();
 
   // Animation for the last name input - ensure it has an initial value of 0
   const lastNameInputHeight = useRef(new Animated.Value(0)).current;
   
+  useEffect(() => {
+    // Check sync status periodically
+    const checkSyncStatus = async () => {
+      try {
+        const pendingOps = await AsyncStorage.getItem('zuzu_pending_operations');
+        const pendingCount = pendingOps ? JSON.parse(pendingOps).length : 0;
+        
+        if (pendingCount > 0) {
+          setSyncStatus(`⚠️ ${pendingCount} pending changes to sync`);
+        } else if (!isOnline) {
+          setSyncStatus('📴 Offline mode - changes will sync when online');
+        } else {
+          setSyncStatus('✅ All changes synced');
+        }
+      } catch (error) {
+        setSyncStatus('❌ Error checking sync status');
+      }
+    };
+
+    checkSyncStatus();
+    const interval = setInterval(checkSyncStatus, 5000); // Check every 5 seconds
+    return () => clearInterval(interval);
+  }, [isOnline]);
+
   const toggleLastNameInput = () => {
     setShowLastNameInput(!showLastNameInput);
     
@@ -51,7 +80,7 @@ export default function HomeScreen() {
         lastName,
         gender,
         searchQuery,
-        useAI: useAI ? 'true' : 'false',
+        newSearch: 'true',
       },
     });
   };
@@ -78,6 +107,40 @@ export default function HomeScreen() {
         style={styles.background}
       >
         <SafeAreaView style={styles.content}>
+          {/* Status Bar */}
+          <View style={styles.statusBar}>
+            <View style={styles.statusItem}>
+              <Ionicons 
+                name={session ? "checkmark-circle" : "alert-circle"} 
+                size={16} 
+                color={session ? "white" : "#FFD700"} 
+              />
+              <Text style={styles.statusText}>
+                {session ? "Authenticated" : "Not Authenticated"}
+              </Text>
+            </View>
+            <View style={styles.statusItem}>
+              <Ionicons 
+                name={isOnline ? "wifi" : "cloud-offline"} 
+                size={16} 
+                color={isOnline ? "white" : "#FFD700"} 
+              />
+              <Text style={styles.statusText}>
+                {isOnline ? "Online" : "Offline"}
+              </Text>
+            </View>
+            <View style={styles.statusItem}>
+              <Ionicons 
+                name="sync" 
+                size={16} 
+                color="white" 
+              />
+              <Text style={styles.statusText}>
+                {syncStatus}
+              </Text>
+            </View>
+          </View>
+
           <View style={styles.centeredContent}>
             <View style={styles.titleContainer}>
               <Image 
@@ -85,7 +148,7 @@ export default function HomeScreen() {
                 style={styles.logo}
                 resizeMode="contain"
               />
-              <Text style={styles.appSubtitle}>Baby Names</Text>
+              <Text style={[styles.appSubtitle, { color: ZUZU_PINK }]}>Baby Names</Text>
             </View>
 
             <View style={styles.formContainer}>
@@ -113,7 +176,7 @@ export default function HomeScreen() {
               
               <View style={styles.optionsContainer}>
                 <View>
-                  <Text style={styles.formLabel}>Gender</Text>
+                  <Text style={[styles.formLabel, { color: ZUZU_PINK }]}>Gender</Text>
                   <View style={styles.genderOptions}>
                     <TouchableOpacity
                       style={[
@@ -166,7 +229,7 @@ export default function HomeScreen() {
                 </View>
                 
                 <View>
-                  <Text style={styles.formLabel}>Last Name</Text>
+                  <Text style={[styles.formLabel, { color: ZUZU_PINK }]}>Last Name</Text>
                   <TouchableOpacity
                     style={[
                       styles.lastNameButton,
@@ -203,19 +266,6 @@ export default function HomeScreen() {
                 </View>
               </Animated.View>
               
-              <View style={styles.aiToggleContainer}>
-                <Text style={styles.aiToggleText}>
-                  AI-powered name generation
-                </Text>
-                <Switch
-                  trackColor={{ false: "#B7B7B7", true: "#80CBC4" }}
-                  thumbColor={useAI ? "#26A69A" : "#f4f3f4"}
-                  ios_backgroundColor="#B7B7B7"
-                  onValueChange={setUseAI}
-                  value={useAI}
-                />
-              </View>
-              
               <TouchableOpacity
                 style={styles.findNamesButton}
                 onPress={handleSearch}
@@ -234,14 +284,14 @@ export default function HomeScreen() {
           </View>
           
           {/* Test link - dev only */}
-          <Link href="/test" asChild>
+          {/* <Link href="/test" asChild>
             <TouchableOpacity 
               style={styles.testButton}
               accessibilityLabel="Test Supabase Integration"
             >
               <Text style={styles.testButtonText}>Test Supabase</Text>
             </TouchableOpacity>
-          </Link>
+          </Link> */}
         </SafeAreaView>
       </LinearGradient>
     </View>
@@ -279,8 +329,9 @@ const styles = StyleSheet.create({
   },
   appSubtitle: {
     fontSize: 24,
-    color: 'white',
-    fontWeight: '600',
+    fontWeight: 'bold',
+    marginTop: 8,
+    textAlign: 'center',
   },
   formContainer: {
     marginHorizontal: 24,
@@ -310,11 +361,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   formLabel: {
-    color: 'white',
     fontSize: 16,
-    marginBottom: 8,
     fontWeight: '600',
-    fontFamily: 'System',  // This will use San Francisco on iOS
+    marginBottom: 8,
   },
   genderOptions: {
     flexDirection: 'row',
@@ -344,19 +393,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: 'transparent',
-  },
-  aiToggleContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    marginHorizontal: 8,
-  },
-  aiToggleText: {
-    fontSize: 16,
-    fontWeight: '500',
-    fontFamily: 'System',  // This will use San Francisco on iOS
-    color: 'white',
   },
   findNamesButton: {
     backgroundColor: '#FF5BA1',
@@ -394,5 +430,24 @@ const styles = StyleSheet.create({
   testButtonText: {
     color: 'white',
     fontWeight: '600',
+  },
+  statusBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  statusItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusText: {
+    color: 'white',
+    fontSize: 12,
+    marginLeft: 4,
   },
 }); 
