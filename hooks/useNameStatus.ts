@@ -268,34 +268,19 @@ export function useNameStatus() {
     return combined;
   };
 
-  const saveNameStatus = useCallback(async (name: NameType, status: 'liked' | 'maybe' | 'disliked') => {
-    // Validate input
-    if (!name || !name.firstName) {
-      console.error(`saveNameStatus called with invalid name object:`, name);
-      throw new Error("Invalid name object provided to saveNameStatus");
-    }
+  // Helper function to check if two names are the same
+  const isSameName = useCallback((a: NameType, b: NameType) => {
+    return a.firstName.toLowerCase() === b.firstName.toLowerCase() && 
+      ((!a.lastName && !b.lastName) || (a.lastName?.toLowerCase() === b.lastName?.toLowerCase()));
+  }, []);
 
-    // Log detailed name info
-    console.log(`saveNameStatus called for name: "${name.firstName}${name.lastName ? ' ' + name.lastName : ''}" (${name.gender}) with status: ${status}`);
+  const saveNameStatus = useCallback(async (name: NameType, status: 'liked' | 'maybe' | 'disliked'): Promise<boolean> => {
+    console.log(`Saving name "${name.firstName}" with status: ${status}`);
     
+    // Create new arrays to avoid mutating state directly
     let updatedLikedNames = [...likedNames];
     let updatedMaybeNames = [...maybeNames];
     let updatedDislikedNames = [...dislikedNames];
-    
-    // Helper function to check if two names are the same
-    const isSameName = (a: NameType, b: NameType) => {
-      return a.firstName.toLowerCase() === b.firstName.toLowerCase() && 
-        ((!a.lastName && !b.lastName) || (a.lastName?.toLowerCase() === b.lastName?.toLowerCase()));
-    };
-    
-    // Check if the name already exists in any lists
-    const existsInLiked = updatedLikedNames.some(n => isSameName(n, name));
-    const existsInMaybe = updatedMaybeNames.some(n => isSameName(n, name));
-    const existsInDisliked = updatedDislikedNames.some(n => isSameName(n, name));
-    
-    if (existsInLiked || existsInMaybe || existsInDisliked) {
-      console.log(`Name "${name.firstName}" already exists in lists: ${existsInLiked ? 'liked ' : ''}${existsInMaybe ? 'maybe ' : ''}${existsInDisliked ? 'disliked' : ''}`);
-    }
     
     // Remove from all lists to prevent duplicates
     updatedLikedNames = updatedLikedNames.filter(n => !isSameName(n, name));
@@ -373,7 +358,7 @@ export function useNameStatus() {
       console.error(`Critical error saving name "${name.firstName}" status:`, error);
       throw error; // Rethrow to be caught by the caller
     }
-  }, [likedNames, maybeNames, dislikedNames, session, isOnline, fetchNames, updateNameStatus, createName, saveNamesToStorage]);
+  }, [session, isOnline, fetchNames, updateNameStatus, createName, saveNamesToStorage, isSameName, likedNames, maybeNames, dislikedNames]);
   
   // Initialize data on mount and when session changes
   useEffect(() => {

@@ -9,30 +9,25 @@
       "distribution": "internal",
       "ios": {
         "simulator": true
-      },
-      "env": {
-        "EXPO_PUBLIC_SUPERWALL_API_KEY_IOS": "your_ios_api_key"
       }
     },
     "preview": {
       "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_SUPERWALL_API_KEY_IOS": "your_ios_api_key"
+      "ios": {
+        "simulator": false
       }
     },
     "production": {
       "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_SUPERWALL_API_KEY_IOS": "your_ios_api_key"
-      }
+      "distribution": "store"
     }
   },
   "submit": {
     "production": {
       "ios": {
         "appleId": "elmamoune@tidalflow.ai",
-        "ascAppId": "your_app_store_connect_app_id",
-        "appleTeamId": "your_team_id"
+        "ascAppId": "6743799133",
+        "appleTeamId": "64746DP573"
       }
     }
   }

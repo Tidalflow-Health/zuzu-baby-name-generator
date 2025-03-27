@@ -45,7 +45,7 @@
         "origin": false
       },
       "eas": {
-        "projectId": "PROJECT_ID"
+        "projectId": "ee0d81cc-671a-4abe-ada7-7c113a394bd9"
       }
     },
     "runtimeVersion": {
@@ -56,6 +56,7 @@
     },
     "android": {
       "package": "com.cqjack.zuzubabynames"
-    }
+    },
+    "owner": "etstudio"
   }
 }

@@ -67,6 +67,8 @@ export default function NamesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [hasInitiatedSearch, setHasInitiatedSearch] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [isGeneratingNextBatch, setIsGeneratingNextBatch] = useState(false);
+  const [pendingNames, setPendingNames] = useState<NameType[]>([]);
   
   const position = useRef(new Animated.ValueXY()).current;
   
@@ -241,10 +243,14 @@ export default function NamesScreen() {
           return;
         }
         
-        // Set names in state and immediately update the ref
-        setNames(aiNames);
-        namesRef.current = aiNames;
-        console.log(`Generated ${aiNames.length} AI names`);
+        // Set initial batch of names (first 5)
+        const initialBatch = aiNames.slice(0, 5);
+        setNames(initialBatch);
+        namesRef.current = initialBatch;
+        console.log(`Set initial batch of ${initialBatch.length} names`);
+        
+        // Store remaining names as pending
+        setPendingNames(aiNames.slice(5));
         
       } catch (error) {
         console.error("Error generating names:", error);
@@ -256,6 +262,22 @@ export default function NamesScreen() {
     
     generateNames();
   }, [hasInitiatedSearch, lastName, gender, searchQuery, fetchAINames]);
+  
+  // Add effect to handle adding more names when needed
+  useEffect(() => {
+    // If we're close to running out of names (3 or fewer left) and have pending names
+    if (names.length - currentIndex <= 3 && pendingNames.length > 0 && !isGeneratingNextBatch) {
+      setIsGeneratingNextBatch(true);
+      
+      // Add next batch of names (5 more)
+      const nextBatch = pendingNames.slice(0, 5);
+      setNames(prevNames => [...prevNames, ...nextBatch]);
+      namesRef.current = [...namesRef.current, ...nextBatch];
+      setPendingNames(prevPending => prevPending.slice(5));
+      
+      setIsGeneratingNextBatch(false);
+    }
+  }, [currentIndex, names.length, pendingNames.length, isGeneratingNextBatch]);
   
   // Update panResponder for better swipe detection and handling with async functions
   const panResponder = useRef(
@@ -772,11 +794,18 @@ export default function NamesScreen() {
   };
   
   const refreshNames = useCallback(async () => {
-    console.log("Refreshing names with same parameters:", { lastName, gender, searchQuery });
+    console.log("=== Starting Name Refresh ===");
+    console.log("Current search parameters:", { lastName, gender, searchQuery });
+    console.log("Previously seen names:", {
+      liked: likedNames.map(n => n.firstName),
+      maybe: maybeNames.map(n => n.firstName),
+      disliked: dislikedNames.map(n => n.firstName)
+    });
     
     // Reset current state
     setNames([]);
     setCurrentIndex(0);
+    setPendingNames([]);
     setIsLoadingNames(true);
     setError(null);
     
@@ -791,40 +820,58 @@ export default function NamesScreen() {
     // Generate new names
     try {
       // Use AI to generate new names
-      console.log("Generating new AI names with same parameters");
+      console.log("Generating new AI names with parameters:", {
+        lastName,
+        gender,
+        searchQuery,
+        count: 20,
+        excludeNames: [...likedNames, ...maybeNames, ...dislikedNames].map(name => name.firstName)
+      });
+
       const aiNames = await fetchAINames({
         lastName,
         gender,
         searchQuery,
-        count: 20
+        count: 20,
+        excludeNames: [...likedNames, ...maybeNames, ...dislikedNames].map(name => name.firstName)
       });
+      
+      console.log(`Generated ${aiNames.length} new names`);
+      console.log("New names:", aiNames.map(n => n.firstName));
       
       if (aiNames.length === 0) {
         console.error("Generated names array is empty");
-        setError("No names were generated. Please try again or change your search criteria.");
+        setError("No new names were generated. Try adjusting your search criteria or try a new search.");
         setIsLoadingNames(false);
         return;
       }
       
-      // Set names in state and immediately update the ref
-      setNames(aiNames);
-      namesRef.current = aiNames;
-      console.log(`Generated ${aiNames.length} new AI names`);
+      // Set initial batch of names (first 5)
+      const initialBatch = aiNames.slice(0, 5);
+      setNames(initialBatch);
+      namesRef.current = initialBatch;
+      console.log(`Set initial batch of ${initialBatch.length} names:`, initialBatch.map(n => n.firstName));
+      
+      // Store remaining names as pending
+      const remainingNames = aiNames.slice(5);
+      setPendingNames(remainingNames);
+      console.log(`Stored ${remainingNames.length} pending names:`, remainingNames.map(n => n.firstName));
       
       // Save the new session
       const searchParams = { lastName, gender, searchQuery };
       await AsyncStorage.setItem(CURRENT_SEARCH_KEY, JSON.stringify(searchParams));
       await AsyncStorage.setItem(CURRENT_NAMES_KEY, JSON.stringify(aiNames));
       await AsyncStorage.setItem(CURRENT_INDEX_KEY, "0");
-      console.log("Saved refreshed session data");
+      console.log("Saved refreshed session data with search params:", searchParams);
       
     } catch (error) {
       console.error("Error refreshing names:", error);
       setError(`Error generating names. Please check your connection and try again.`);
     } finally {
       setIsLoadingNames(false);
+      console.log("=== Name Refresh Complete ===");
     }
-  }, [lastName, gender, searchQuery, fetchAINames]);
+  }, [lastName, gender, searchQuery, fetchAINames, likedNames, maybeNames, dislikedNames]);
   
   const goToNewSearch = () => {
     router.push('/home');
@@ -918,138 +965,72 @@ export default function NamesScreen() {
       return renderNoMoreCards();
     }
     
-    // In Tinder, we only show the current card fully visible and the next card partially behind
-    const cards = names
-      .slice(currentIndex, currentIndex + 2) // Get current and next card
-      .map((name, index) => {
-        if (index === 0) {
-          // Top card - fully visible and interactive
-          return renderTopCard(name);
-        } else {
-          // Next card - initially hidden underneath
-          return renderNextCard(name);
-        }
-      });
+    // Render only the current card and the next card
+    const currentCard = names[currentIndex];
+    const nextCard = names[currentIndex + 1];
     
-    // Render in reverse to ensure proper z-index (next card behind top card)
     return (
       <View style={styles.cardsContainer}>
-        {cards.reverse()}
+        {nextCard && (
+          <View style={[styles.card, styles.nextCard]}>
+            <LinearGradient
+              colors={getGradientColors(nextCard.gender)}
+              style={styles.cardGradient}
+              start={{ x: 0, y: 0.7 }}
+              end={{ x: 0, y: 1 }}
+            >
+              <Text style={styles.firstNameText}>{nextCard.firstName}</Text>
+              {nextCard.lastName && <Text style={styles.lastNameText}>{nextCard.lastName}</Text>}
+              <Text style={styles.meaningText}>{nextCard.meaning}</Text>
+            </LinearGradient>
+          </View>
+        )}
+        <Animated.View
+          style={[
+            styles.card,
+            {
+              transform: [
+                { translateX: position.x },
+                { translateY: position.y },
+                { rotate: position.x.interpolate({
+                  inputRange: [-SCREEN_WIDTH * 1.5, 0, SCREEN_WIDTH * 1.5],
+                  outputRange: ['-30deg', '0deg', '30deg'],
+                })}
+              ],
+              zIndex: 2,
+            }
+          ]}
+          {...panResponder.panHandlers}
+        >
+          <LinearGradient
+            colors={getGradientColors(currentCard.gender)}
+            style={styles.cardGradient}
+            start={{ x: 0, y: 0.7 }}
+            end={{ x: 0, y: 1 }}
+          >
+            <Text style={styles.firstNameText}>{currentCard.firstName}</Text>
+            {currentCard.lastName && <Text style={styles.lastNameText}>{currentCard.lastName}</Text>}
+            <Text style={styles.meaningText}>{currentCard.meaning}</Text>
+          </LinearGradient>
+        </Animated.View>
+        {isGeneratingNextBatch && (
+          <View style={styles.loadingIndicator}>
+            <ActivityIndicator size="small" color="#FF5BA1" />
+          </View>
+        )}
       </View>
     );
   };
   
-  // The top card that users interact with
-  const renderTopCard = (name: NameType) => {
-    console.log(`Rendering top card for name: ${name?.firstName || 'undefined'}`);
-    
-    if (!name) {
-      console.error("Attempted to render top card with null name");
-      return null;
-    }
-    
-    let gradientColors: [string, string];
-    
-    // Set gradient colors based on gender
-    if (name.gender === 'boy') {
-      gradientColors = Colors.gender.boy.gradient as [string, string];
-    } else if (name.gender === 'girl') {
-      gradientColors = Colors.gender.girl.gradient as [string, string];
-    } else if (name.gender === 'unisex') {
-      gradientColors = Colors.gender.neutral.gradient as [string, string];
+  // Helper function to get gradient colors based on gender
+  const getGradientColors = (gender: 'boy' | 'girl' | 'unisex' | 'any'): [string, string] => {
+    if (gender === 'boy') {
+      return Colors.gender.boy.gradient as [string, string];
+    } else if (gender === 'girl') {
+      return Colors.gender.girl.gradient as [string, string];
     } else {
-      gradientColors = Colors.gender.neutral.gradient as [string, string];
+      return Colors.gender.neutral.gradient as [string, string];
     }
-    
-    // Get rotation based on position for realistic card movement
-    const rotate = position.x.interpolate({
-      inputRange: [-SCREEN_WIDTH * 1.5, 0, SCREEN_WIDTH * 1.5],
-      outputRange: ['-30deg', '0deg', '30deg'],
-    });
-    
-    return (
-      <Animated.View
-        key={`card-${currentIndex}`}
-        style={[
-          styles.card,
-          {
-            transform: [
-              { translateX: position.x },
-              { translateY: position.y },
-              { rotate },
-            ],
-            zIndex: 2,
-          }
-        ]}
-        {...panResponder.panHandlers}
-      >
-        <LinearGradient
-          colors={gradientColors}
-          style={styles.cardGradient}
-          start={{ x: 0, y: 0.7 }}
-          end={{ x: 0, y: 1 }}
-        >
-          <Text style={styles.firstNameText}>{name.firstName}</Text>
-          {name.lastName && <Text style={styles.lastNameText}>{name.lastName}</Text>}
-          <Text style={styles.meaningText}>
-            {name.meaning}
-          </Text>
-        </LinearGradient>
-      </Animated.View>
-    );
-  };
-  
-  // The next card that's hidden underneath
-  const renderNextCard = (name: NameType) => {
-    console.log(`Rendering next card for name: ${name?.firstName || 'undefined'}`);
-    
-    if (!name) {
-      console.error("Attempted to render next card with null name");
-      return null;
-    }
-    
-    let gradientColors: [string, string];
-    
-    // Set gradient colors based on gender
-    if (name.gender === 'boy') {
-      gradientColors = Colors.gender.boy.gradient as [string, string];
-    } else if (name.gender === 'girl') {
-      gradientColors = Colors.gender.girl.gradient as [string, string];
-    } else if (name.gender === 'unisex') {
-      gradientColors = Colors.gender.neutral.gradient as [string, string];
-    } else {
-      gradientColors = Colors.gender.neutral.gradient as [string, string];
-    }
-    
-    // Simplify next card rendering - no animations
-    return (
-      <View
-        key={`next-card-${currentIndex + 1}`}
-        style={[
-          styles.card,
-          styles.nextCard,
-          {
-            // Fixed position with slight scaling down and reduced opacity
-            transform: [{ scale: 0.95 }],
-            opacity: 0.7,
-            zIndex: 1,
-          }
-        ]}
-      >
-        <LinearGradient
-          colors={gradientColors}
-          style={styles.cardGradient}
-          start={{ x: 0, y: 0.7 }}
-          end={{ x: 0, y: 1 }}
-        >
-          <Text style={styles.firstNameText}>{name.firstName}</Text>
-          {name.lastName && <Text style={styles.lastNameText}>{name.lastName}</Text>}
-          <Text style={styles.meaningText}>
-            {name.meaning}
-          </Text>
-        </LinearGradient>
-      </View>
-    );
   };
   
   // Add debugging log for names array
@@ -1163,11 +1144,11 @@ export default function NamesScreen() {
     </Modal>
   );
   
-  // Add a function to get the current progress display
+  // Update getProgressText to show out of 20
   const getProgressText = useCallback(() => {
     if (!names.length) return '';
-    return `${currentIndex + 1}/${names.length}`;
-  }, [currentIndex, names.length]);
+    return `${currentIndex + 1}/20`;
+  }, [currentIndex]);
   
   return (
     <View style={styles.container}>
@@ -1565,5 +1546,13 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  loadingIndicator: {
+    position: 'absolute',
+    bottom: -30,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 }); 

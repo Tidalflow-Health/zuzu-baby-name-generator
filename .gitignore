@@ -30,7 +30,11 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+.env.development
+.env.test
+.env.production
 
 # typescript
 *.tsbuildinfo
@@ -104,5 +108,22 @@ web-build/
 .env.test.local
 .env.production.local
 
-# typescript
-*.tsbuildinfo
+# Credentials and sensitive files
+credentials.json
+*.p12
+*.key
+*.mobileprovision
+*.cer
+*.pem
+*.der
+*.jks
+*.keystore
+!debug.keystore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+abc.json

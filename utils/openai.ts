@@ -25,9 +25,13 @@ const VERCEL_API_URL = 'https://backend-fyiajgvqe-tidalflow1.vercel.app';
  * Generate baby names using OpenAI via Vercel API
  */
 export async function generateNames(params: NameGenerationParams): Promise<GeneratedName[]> {
+  console.log("=== Starting OpenAI Name Generation ===");
+  console.log("API Request parameters:", {
+    ...params,
+    excludeNamesCount: params.excludeNames?.length || 0
+  });
+
   try {
-    console.log('Generating names with AI params:', params);
-    
     const response = await fetch(VERCEL_API_URL, {
       method: 'POST',
       headers: {
@@ -39,16 +43,23 @@ export async function generateNames(params: NameGenerationParams): Promise<Gener
     
     if (!response.ok) {
       const errorText = await response.text();
+      console.error("API Error Response:", {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
       throw new Error(`Failed to generate names with AI: ${response.status} - ${errorText}`);
     }
     
     const data = await response.json();
-    console.log(`Generated ${data.names?.length || 0} names using AI`);
+    console.log(`API Response: Generated ${data.names?.length || 0} names`);
+    console.log("Generated names:", data.names?.map((n: GeneratedName) => n.firstName));
+    console.log("=== OpenAI Name Generation Complete ===");
     
     return data.names || [];
   } catch (error) {
-    console.error('Error generating names with AI:', error);
-    throw error; // Rethrow the error to be handled by the caller
+    console.error('Error in OpenAI name generation:', error);
+    throw error;
   }
 }
 
