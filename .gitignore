@@ -126,4 +126,11 @@ credentials.json
 *.swp
 *.swo
 
+# App Store Connect API Key
+AuthKey_*.p8
+
+# Native platform folders
+/android/
+/ios/
+
 abc.json
