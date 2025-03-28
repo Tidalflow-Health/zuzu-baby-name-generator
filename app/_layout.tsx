@@ -1,3 +1,4 @@
+import React from 'react';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -7,6 +8,15 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from '../contexts/AuthContext';
+import * as Sentry from '@sentry/react-native';
+import { initSentry } from '../utils/sentry';
+import { View, Text } from 'react-native';
+
+// Initialize Sentry
+initSentry();
+
+// Log the update URL
+console.log('EXPO_PUBLIC_UPDATE_URL:', process.env.EXPO_PUBLIC_UPDATE_URL);
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -26,42 +36,67 @@ const IOSTheme = {
   }
 };
 
+// Error boundary component
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    Sentry.captureException(error, {
+      extra: {
+        componentStack: errorInfo.componentStack,
+      },
+    });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: '#FF5BA1', fontSize: 16 }}>
+            Something went wrong. Please restart the app.
+          </Text>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 export default function RootLayout() {
-  const [loaded] = useFonts({
-    // You can add any custom fonts here if needed
-  });
+  // We'll use system font for now
+  const [fontsLoaded] = useFonts({});
 
   useEffect(() => {
-    if (loaded) {
+    if (fontsLoaded) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [fontsLoaded]);
 
-  if (!loaded) return null;
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <ThemeProvider value={IOSTheme}>
-          <Stack 
-            screenOptions={{ 
-              headerShown: false,
-              // Remove animation completely
-              animation: 'none',
-              // Keep gesture navigation enabled for user experience
-              gestureEnabled: true,
-              presentation: 'card'
-            }}
-          >
-            <Stack.Screen name="index" />
-            <Stack.Screen name="home" />
-            <Stack.Screen name="names" />
-            <Stack.Screen name="likes" />
-            {/* <Stack.Screen name="test" /> */}
-          </Stack>
-          <StatusBar style="light" />
-        </ThemeProvider>
-      </AuthProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AuthProvider>
+          <ThemeProvider value={IOSTheme}>
+            <Stack>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="names" options={{ headerShown: false }} />
+              <Stack.Screen name="likes" options={{ headerShown: false }} />
+              <Stack.Screen name="matches" options={{ headerShown: false }} />
+              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            </Stack>
+            <StatusBar style="dark" />
+          </ThemeProvider>
+        </AuthProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

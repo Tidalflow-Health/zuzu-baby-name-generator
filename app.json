@@ -2,61 +2,68 @@
   "expo": {
     "name": "Zuzu Baby Names",
     "slug": "zuzu-baby-names",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
+    "scheme": "zuzu-baby-names",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
     "icon": "./assets/images/icon.png",
-    "scheme": "zuzu",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F9D976"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.cqjack.zuzubabynames",
-      "buildNumber": "2",
+      "bundleIdentifier": "com.zuzubabynames.app",
+      "buildNumber": "1",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": false,
-          "NSAllowsLocalNetworking": true
-        }
+        "NSPhotoLibraryUsageDescription": "Allow Zuzu Baby Names to access your photos to save name cards.",
+        "NSCameraUsageDescription": "Allow Zuzu Baby Names to access your camera to take photos of name cards."
       }
     },
+    "android": {
+      "package": "com.zuzubabynames.app",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
     "web": {
-      "bundler": "metro",
-      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router",
       [
-        "expo-splash-screen",
+        "expo-build-properties",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "ios": {
+            "useFrameworks": "static"
+          }
         }
       ]
     ],
-    "experiments": {
-      "typedRoutes": true
-    },
     "extra": {
-      "router": {
-        "origin": false
-      },
       "eas": {
         "projectId": "ee0d81cc-671a-4abe-ada7-7c113a394bd9"
       }
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "EXPO_UPDATE_URL"
-    },
-    "android": {
-      "package": "com.cqjack.zuzubabynames"
-    },
-    "owner": "etstudio"
+    "hooks": {
+      "postPublish": [
+        {
+          "file": "sentry-expo/upload-sourcemaps",
+          "config": {
+            "organization": "tidalflow-y7",
+            "project": "zuzu-app"
+          }
+        }
+      ]
+    }
   }
 }

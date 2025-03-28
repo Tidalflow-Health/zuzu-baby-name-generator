@@ -4,6 +4,7 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEBUG_CONFIG } from './appConfig';
+import { captureError, captureMessage } from './sentry';
 
 // Network status cache
 const NETWORK_STATUS_KEY = 'zuzu_network_status';
@@ -25,7 +26,7 @@ const loadCachedNetworkStatus = async () => {
       };
     }
   } catch (e) {
-    console.error('Failed to load network status from cache', e);
+    captureError(e as Error, { context: 'load_cached_network_status' });
   }
 };
 
@@ -39,6 +40,7 @@ export const checkConnectivity = async (
 ): Promise<boolean> => {
   // If debugging with forced offline mode, always return false
   if (DEBUG_CONFIG.FORCE_OFFLINE_MODE) {
+    captureMessage('Forced offline mode enabled', 'info');
     return false;
   }
   
@@ -79,11 +81,17 @@ export const checkConnectivity = async (
       JSON.stringify(cachedNetworkStatus)
     );
     
+    if (!response.ok) {
+      captureMessage('Network check failed', 'warning');
+    }
+    
     return response.ok;
   } catch (error) {
-    if (DEBUG_CONFIG.LOG_NETWORK_REQUESTS) {
-      console.error('Network check failed:', error);
-    }
+    captureError(error as Error, { 
+      context: 'check_connectivity',
+      targetUrl,
+      timeout
+    });
     
     // Update the cached status
     cachedNetworkStatus = {

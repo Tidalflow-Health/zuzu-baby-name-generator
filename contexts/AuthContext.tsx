@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert, Platform } from 'react-native';
 import { DEBUG_CONFIG } from '../utils/appConfig';
 import { checkConnectivity, retryWithBackoff, isNetworkError } from '../utils/network';
+import { captureError, captureMessage } from '../utils/sentry';
 
 type AuthContextType = {
   session: Session | null;
@@ -32,11 +33,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Subscribe to auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) {
-        saveAnonymousId(session.user.id);
+      try {
+        setSession(session);
+        if (session) {
+          saveAnonymousId(session.user.id);
+          captureMessage('User authenticated successfully');
+        }
+        setIsLoading(false);
+      } catch (error) {
+        captureError(error as Error, { context: 'auth_state_change' });
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
     
     // Initial connectivity check
@@ -52,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await AsyncStorage.setItem(ANONYMOUS_ID_KEY, id);
     } catch (error) {
-      console.error('Failed to save anonymous ID:', error);
+      captureError(error as Error, { context: 'save_anonymous_id' });
     }
   };
 
@@ -61,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       return await AsyncStorage.getItem(ANONYMOUS_ID_KEY);
     } catch (error) {
-      console.error('Failed to get anonymous ID:', error);
+      captureError(error as Error, { context: 'get_anonymous_id' });
       return null;
     }
   };
@@ -71,9 +78,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const isConnected = await checkConnectivity();
       setIsOnline(isConnected);
+      if (!isConnected) {
+        captureMessage('Device is offline', 'warning');
+      }
       return isConnected;
     } catch (error) {
-      console.error('Error checking network status:', error);
+      captureError(error as Error, { context: 'check_network_status' });
       setIsOnline(false);
       return false;
     }
@@ -81,27 +91,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Creates a fake session for offline mode
   const createOfflineSession = async (): Promise<Session> => {
-    // Try to get an existing ID first
-    const savedId = await getAnonymousId();
-    const randomId = savedId || 'offline_' + Math.random().toString(36).substring(2, 15);
-    
-    if (!savedId) {
-      await saveAnonymousId(randomId);
-    }
-    
-    return {
-      access_token: 'offline_mode',
-      refresh_token: '',
-      expires_in: 0,
-      expires_at: 0,
-      user: {
-        id: randomId,
-        app_metadata: {},
-        user_metadata: {},
-        aud: 'offline',
-        created_at: '',
+    try {
+      // Try to get an existing ID first
+      const savedId = await getAnonymousId();
+      const randomId = savedId || 'offline_' + Math.random().toString(36).substring(2, 15);
+      
+      if (!savedId) {
+        await saveAnonymousId(randomId);
       }
-    } as Session;
+      
+      captureMessage('Created offline session', 'info');
+      
+      return {
+        access_token: 'offline_mode',
+        refresh_token: '',
+        expires_in: 0,
+        expires_at: 0,
+        user: {
+          id: randomId,
+          app_metadata: {},
+          user_metadata: {},
+        }
+      };
+    } catch (error) {
+      captureError(error as Error, { context: 'create_offline_session' });
+      throw error;
+    }
   };
 
   const checkSession = async () => {
