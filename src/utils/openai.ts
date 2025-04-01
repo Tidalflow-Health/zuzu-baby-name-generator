@@ -18,8 +18,16 @@ export interface GeneratedName {
   gender: 'boy' | 'girl' | 'unisex' | 'any';
 }
 
-// Vercel API endpoint for OpenAI
-const VERCEL_API_URL = 'https://backend-fyxhwgzqw-tidalflow1.vercel.app';
+// Read Vercel API endpoint from environment variable
+const VERCEL_API_URL = process.env.EXPO_PUBLIC_VERCEL_API_URL;
+
+// Check if the environment variable is set
+if (!VERCEL_API_URL) {
+  console.error("FATAL ERROR: EXPO_PUBLIC_VERCEL_API_URL environment variable is not set.");
+  // Optionally throw an error or provide a default (though default is not recommended for APIs)
+  // throw new Error("EXPO_PUBLIC_VERCEL_API_URL is not set"); 
+}
+
 const API_TIMEOUT = 20000; // 20 seconds timeout (increased from 15)
 const MAX_RETRIES = 2; // Maximum number of retry attempts
 
