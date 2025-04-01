@@ -42,9 +42,17 @@ Follow these instructions precisely:
 6. Every name MUST have a meaningful description and clear origin information.
 7. DO NOT include any of the following first names in the response: ${excludeNames.join(', ') || 'None'}.`; // Add exclusion list
 
+  // Modify gender instruction based on input
+  let genderInstruction = 'mix of boy, girl, and unisex';
+  if (gender === 'boy') {
+    genderInstruction = 'boy and unisex';
+  } else if (gender === 'girl') {
+    genderInstruction = 'girl and unisex';
+  }
+
   const userPrompt = `Generate exactly ${count} unique baby names based on this request:
 - Theme/Query: ${searchQuery || 'popular and unique'}
-- Gender: ${gender === 'any' ? 'mix of boy, girl, and unisex' : gender}
+- Gender: ${genderInstruction}
 ${lastName ? `- Optional context (last name): ${lastName}` : ''}
 ${excludeNames.length > 0 ? `- Exclude these first names: ${excludeNames.join(', ')}` : ''} 
 
@@ -119,12 +127,13 @@ Return ONLY a JSON array containing ${count} name objects in this exact format:
         parsedNames = generateFallbackNames(gender, Math.min(count, 10));
       }
 
-      // Ensure all names in the final array have the required fields (NO LAST NAME HERE)
+      // Ensure all names in the final array have the required fields (ADD LAST NAME HERE)
       parsedNames = parsedNames.map(name => ({
         firstName: name.firstName || name.name || "Unknown",
         meaning: name.meaning || "A beautiful name",
         origin: name.origin || "Traditional",
-        gender: name.gender || gender || "unisex"
+        gender: name.gender || gender || "unisex",
+        lastName: lastName // Re-add the received lastName
       }));
 
     } catch (parseError) { // Removed ': any'

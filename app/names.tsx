@@ -712,7 +712,8 @@ export default function NamesScreen() {
     // Combine already interacted names (liked/maybe/disliked) with names already fetched in this session
     const excludeRecords = [...likedNames, ...maybeNames, ...dislikedNames];
     const interactedIds = new Set(excludeRecords.map(n => n.firstName.toLowerCase()));
-    const allExcludeIds = new Set([...currentSeenIds, ...interactedIds]);
+    // Explicitly convert sets to arrays before combining
+    const allExcludeIds = new Set([...Array.from(currentSeenIds), ...Array.from(interactedIds)]);
 
     // --- CHANGE: Request 20 names for the next batch --- 
     const requestedCount = 20;
@@ -724,7 +725,7 @@ export default function NamesScreen() {
         ...searchParams,
         count: requestedCount,
         // --- CHANGE: Pass ALL excluded names (seen + interacted) --- 
-        excludeNames: Array.from(allExcludeIds), 
+        excludeNames: Array.from(allExcludeIds), // Pass as array
       });
       console.log(`[${timestamp}] 🤖 REFRESH V2: fetchAINames returned ${aiNames?.length ?? 0} raw names.`);
 
@@ -929,6 +930,13 @@ export default function NamesScreen() {
             <Text style={styles.firstNameText}>{currentCard.firstName}</Text>
             {currentCard.lastName && <Text style={styles.lastNameText}>{currentCard.lastName}</Text>}
             <Text style={styles.meaningText}>📖 {currentCard.meaning}</Text>
+            {/* Add Origin display */}
+            {currentCard.origin && (
+              <View style={styles.originContainer}>
+                 <Ionicons name="earth-outline" size={16} color="white" style={styles.originIcon} />
+                 <Text style={styles.originText}>{currentCard.origin}</Text>
+              </View>
+            )}
             
             {/* --- Swipe Overlay --- */}
             <Animated.View style={[
@@ -1304,6 +1312,22 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     paddingHorizontal: 20,
   },
+  originContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8, // Add some space above origin
+    opacity: 0.9, // Slightly less prominent than meaning
+  },
+  originIcon: {
+    marginRight: 6,
+  },
+  originText: {
+    fontSize: 16,
+    color: 'white',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
   controlsContainer: {
     position: 'absolute',
     left: 0,
@@ -1339,7 +1363,7 @@ const styles = StyleSheet.create({
   questionMark: {
     fontSize: 30,
     fontWeight: 'bold',
-    color: 'white',
+    color: 'black',
   },
   noMoreCardsContainer: {
     width: SCREEN_WIDTH * 0.9,
