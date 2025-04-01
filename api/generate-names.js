@@ -53,7 +53,6 @@ Follow these instructions precisely:
   const userPrompt = `Generate exactly ${count} unique baby names based on this request:
 - Theme/Query: ${searchQuery || 'popular and unique'}
 - Gender: ${genderInstruction}
-${lastName ? `- Optional context (last name): ${lastName}` : ''}
 ${excludeNames.length > 0 ? `- Exclude these first names: ${excludeNames.join(', ')}` : ''} 
 
 Return ONLY a JSON array containing ${count} name objects in this exact format:
@@ -133,7 +132,7 @@ Return ONLY a JSON array containing ${count} name objects in this exact format:
         meaning: name.meaning || "A beautiful name",
         origin: name.origin || "Traditional",
         gender: name.gender || gender || "unisex",
-        lastName: lastName // Re-add the received lastName
+        lastName: lastName // Ensure lastName from request is added here
       }));
 
     } catch (parseError) { // Removed ': any'
