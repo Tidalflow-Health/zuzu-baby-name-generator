@@ -4,7 +4,10 @@
     "strict": true,
     "paths": {
       "@/*": [
-        "./*"
+        "./src/*"
+      ],
+      "@assets/*": [
+        "./assets/*"
       ],
       "@components/*": [
         "./components/*"
@@ -23,7 +26,10 @@
     "baseUrl": ".",
     "types": [
       "node"
-    ]
+    ],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "node"
   },
   "include": [
     "**/*.ts",

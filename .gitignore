@@ -134,3 +134,4 @@ AuthKey_*.p8
 /ios/
 
 abc.json
+.vercel

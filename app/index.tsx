@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { Redirect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useAuth } from '../contexts/AuthContext';
-import Colors from '../constants/Colors';
-import { DEBUG_CONFIG } from '../utils/appConfig';
+import { useAuth } from '@/contexts/AuthContext';
+import Colors from '@/constants/Colors';
+import { DEBUG_CONFIG } from '@/utils/appConfig';
 
 export default function Index() {
   const { signIn, isLoading, session, isOnline } = useAuth();

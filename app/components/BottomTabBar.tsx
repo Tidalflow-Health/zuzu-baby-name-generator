@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions } from '
 import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Colors from '../../constants/Colors';
+import Colors from '@/constants/Colors';
 
 type BottomTabBarProps = {
   likedNamesData?: string;
@@ -14,8 +14,8 @@ type BottomTabBarProps = {
 // Define valid paths for type checking
 type ValidPath = '/home' | '/names' | '/likes';
 
-// Define valid icon names
-type ValidIcon = 'search' | 'person' | 'heart';
+// Define valid icon names - explicitly include outline variants
+type ValidIcon = 'search' | 'search-outline' | 'layers-outline' | 'star' | 'star-outline' | 'person' | 'person-outline';
 
 type Route = {
   name: string;
@@ -37,20 +37,20 @@ export default function BottomTabBar({
   // Define routes with better icon choices
   const routes: Route[] = [
     {
-      name: 'Search',
+      name: 'Find Names',
       path: '/home',
-      icon: 'search',
+      icon: 'person',
       showAsCircle: true,
     },
     {
-      name: 'Names',
+      name: 'Swipe',
       path: '/names',
-      icon: 'person',
+      icon: 'layers-outline',
     },
     {
-      name: 'Matches',
+      name: 'Favorites',
       path: '/likes',
-      icon: 'heart',
+      icon: 'star',
     },
   ];
   
@@ -88,9 +88,9 @@ export default function BottomTabBar({
         onPress={() => navigateTo('/home')}
         activeOpacity={0.7}
       >
-        <View style={styles.circleButton}>
+        <View style={[styles.circleButton, { backgroundColor: '#6A5AFF' }]}>
           <Ionicons
-            name="search"
+            name="person"
             size={26}
             color="white"
           />
@@ -116,7 +116,7 @@ export default function BottomTabBar({
                   style={[
                     styles.tabText,
                     {
-                      color: pathname === route.path ? Colors.primary.main : 'black',
+                      color: pathname === route.path ? '#6A5AFF' : 'black',
                       fontWeight: pathname === route.path ? '600' : 'normal',
                       marginTop: 24, // Push text down to align with other tabs
                     },
@@ -139,16 +139,21 @@ export default function BottomTabBar({
             >
               <View style={styles.tabContent}>
                 <Ionicons
-                  name={`${route.icon}${isActive ? '' : '-outline'}`}
+                  // Conditionally add -outline, except for icons already ending with it
+                  name={isActive 
+                    ? route.icon 
+                    : route.icon === 'layers-outline' 
+                      ? 'layers-outline' 
+                      : `${route.icon}-outline` as any}
                   size={getIconSize(isActive, false)}
-                  color={isActive ? Colors.primary.main : 'black'}
+                  color={isActive ? '#6A5AFF' : '#000000'}
                   style={styles.tabIcon}
                 />
                 <Text
                   style={[
                     styles.tabText,
                     {
-                      color: isActive ? Colors.primary.main : 'black',
+                      color: isActive ? '#6A5AFF' : '#000000',
                       fontWeight: isActive ? '600' : 'normal',
                     },
                   ]}
@@ -207,7 +212,6 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: Colors.primary.main,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: Colors.neutral.black,

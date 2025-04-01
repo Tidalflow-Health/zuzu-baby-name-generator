@@ -7,9 +7,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { AuthProvider } from '../contexts/AuthContext';
+import { AuthProvider } from '@/contexts/AuthContext';
 import * as Sentry from '@sentry/react-native';
-import { initSentry } from '../utils/sentry';
+import { initSentry } from '@/utils/sentry';
 import { View, Text } from 'react-native';
 
 // Initialize Sentry
@@ -86,12 +86,16 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AuthProvider>
           <ThemeProvider value={IOSTheme}>
-            <Stack>
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="names" options={{ headerShown: false }} />
-              <Stack.Screen name="likes" options={{ headerShown: false }} />
-              <Stack.Screen name="matches" options={{ headerShown: false }} />
-              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            <Stack screenOptions={{ 
+              headerShown: false,
+              animation: 'none' // Disable animations between screens
+            }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="home" />
+              <Stack.Screen name="names" />
+              <Stack.Screen name="likes" />
+              <Stack.Screen name="matches" />
+              <Stack.Screen name="onboarding" />
             </Stack>
             <StatusBar style="dark" />
           </ThemeProvider>

@@ -15,13 +15,13 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import BottomTabBar from './components/BottomTabBar';
-import Colors from '../constants/Colors';
+import Colors from '@/constants/Colors';
 import { Link } from 'expo-router';
-import { useAuth } from '../contexts/AuthContext';
-import { useNames } from '../hooks/useNames';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNames } from '@/hooks/useNames';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const ZUZU_PINK = '#FF5BA1'; // Adding Zuzu pink color constant
+const ZUZU_PURPLE = '#6A5AFF'; // Adding Zuzu purple color constant
 
 export default function HomeScreen() {
   const [lastName, setLastName] = useState('');
@@ -30,7 +30,6 @@ export default function HomeScreen() {
   const [likedNames, setLikedNames] = useState([]);
   const [maybeNames, setMaybeNames] = useState([]);
   const [showLastNameInput, setShowLastNameInput] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<string>('');
   const insets = useSafeAreaInsets();
   const { session, isOnline } = useAuth();
   const { pendingOperations, syncPendingOperations } = useNames();
@@ -38,30 +37,6 @@ export default function HomeScreen() {
   // Animation for the last name input - ensure it has an initial value of 0
   const lastNameInputHeight = useRef(new Animated.Value(0)).current;
   
-  useEffect(() => {
-    // Check sync status periodically
-    const checkSyncStatus = async () => {
-      try {
-        const pendingOps = await AsyncStorage.getItem('zuzu_pending_operations');
-        const pendingCount = pendingOps ? JSON.parse(pendingOps).length : 0;
-        
-        if (pendingCount > 0) {
-          setSyncStatus(`⚠️ ${pendingCount} pending changes to sync`);
-        } else if (!isOnline) {
-          setSyncStatus('📴 Offline mode - changes will sync when online');
-        } else {
-          setSyncStatus('✅ All changes synced');
-        }
-      } catch (error) {
-        setSyncStatus('❌ Error checking sync status');
-      }
-    };
-
-    checkSyncStatus();
-    const interval = setInterval(checkSyncStatus, 5000); // Check every 5 seconds
-    return () => clearInterval(interval);
-  }, [isOnline]);
-
   const toggleLastNameInput = () => {
     setShowLastNameInput(!showLastNameInput);
     
@@ -101,54 +76,19 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
-      <LinearGradient
-        colors={[Colors.gradients.background[0], Colors.gradients.background[1]]}
-        style={styles.background}
-      >
+      <StatusBar style="dark" />
+      <View style={styles.background}>
         <SafeAreaView style={styles.content}>
-          {/* Status Bar */}
-          <View style={styles.statusBar}>
-            <View style={styles.statusItem}>
-              <Ionicons 
-                name={session ? "checkmark-circle" : "alert-circle"} 
-                size={16} 
-                color={session ? "white" : "#FFD700"} 
-              />
-              <Text style={styles.statusText}>
-                {session ? "Authenticated" : "Not Authenticated"}
-              </Text>
-            </View>
-            <View style={styles.statusItem}>
-              <Ionicons 
-                name={isOnline ? "wifi" : "cloud-offline"} 
-                size={16} 
-                color={isOnline ? "white" : "#FFD700"} 
-              />
-              <Text style={styles.statusText}>
-                {isOnline ? "Online" : "Offline"}
-              </Text>
-            </View>
-            <View style={styles.statusItem}>
-              <Ionicons 
-                name="sync" 
-                size={16} 
-                color="white" 
-              />
-              <Text style={styles.statusText}>
-                {syncStatus}
-              </Text>
-            </View>
-          </View>
+          {/* Removing Status Bar */}
 
           <View style={styles.centeredContent}>
             <View style={styles.titleContainer}>
               <Image 
-                source={require('../assets/images/ZuzuLogo.png')} 
+                source={require('@assets/images/ZuzuLogo.png')} 
                 style={styles.logo}
                 resizeMode="contain"
               />
-              <Text style={[styles.appSubtitle, { color: ZUZU_PINK }]}>Baby Names</Text>
+              <Text style={[styles.appSubtitle, { color: ZUZU_PURPLE }]}>Baby Name Generator</Text>
             </View>
 
             <View style={styles.formContainer}>
@@ -167,82 +107,79 @@ export default function HomeScreen() {
                   onPress={handleSearch}
                 >
                   <Ionicons
-                    name="search"
-                    size={22}
-                    color="#FF5BA1"
+                    name="chevron-forward"
+                    size={28}
+                    color="#6A5AFF"
                   />
                 </TouchableOpacity>
               </View>
               
               <View style={styles.optionsContainer}>
                 <View>
-                  <Text style={[styles.formLabel, { color: ZUZU_PINK }]}>Gender</Text>
+                  <Text style={[styles.formLabel, { color: ZUZU_PURPLE }]}>Baby Gender</Text>
                   <View style={styles.genderOptions}>
                     <TouchableOpacity
                       style={[
                         styles.genderIconOption,
-                        gender === 'Boy' && styles.activeGenderOption,
-                        { backgroundColor: gender === 'Boy' ? 'white' : '#4FB0FF' }
+                        { 
+                          backgroundColor: gender === 'Boy' ? '#4FB0FF' : '#F5F5F5',
+                        }
                       ]}
                       onPress={() => setGender('Boy')}
                     >
                       <Ionicons 
                         name="male" 
                         size={20} 
-                        color={gender === 'Boy' ? '#4FB0FF' : 'white'} 
+                        color={gender === 'Boy' ? 'white' : '#000000'} 
                       />
                     </TouchableOpacity>
                     
                     <TouchableOpacity
                       style={[
                         styles.genderIconOption,
-                        gender === 'Girl' && styles.activeGenderOption,
-                        { backgroundColor: gender === 'Girl' ? 'white' : '#FF5BA1' }
+                        { 
+                          backgroundColor: gender === 'Girl' ? '#FF5BA1' : '#F5F5F5',
+                        }
                       ]}
                       onPress={() => setGender('Girl')}
                     >
                       <Ionicons 
                         name="female" 
                         size={20} 
-                        color={gender === 'Girl' ? '#FF5BA1' : 'white'} 
+                        color={gender === 'Girl' ? 'white' : '#000000'} 
                       />
                     </TouchableOpacity>
                     
                     <TouchableOpacity
                       style={[
                         styles.genderIconOption,
-                        gender === 'Any' && styles.activeGenderOption,
-                        { backgroundColor: '#B799FF' }
+                        { 
+                          backgroundColor: gender === 'Any' ? '#6A5AFF' : '#F5F5F5',
+                        }
                       ]}
                       onPress={() => setGender('Any')}
                     >
-                      <Text 
-                        style={[
-                          styles.questionMarkText,
-                          { color: 'white' }
-                        ]}
-                      >
-                        ?
-                      </Text>
+                      <Text style={{ 
+                        fontSize: 20, 
+                        color: gender === 'Any' ? 'white' : '#000000',
+                        fontWeight: '600'
+                      }}>?</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
                 
                 <View>
-                  <Text style={[styles.formLabel, { color: ZUZU_PINK }]}>Last Name</Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.lastNameButton,
-                      { backgroundColor: '#F0F0F0' }
-                    ]}
-                    onPress={toggleLastNameInput}
-                  >
-                    <Ionicons 
-                      name="pencil" 
-                      size={20} 
-                      color="black" 
+                  <Text style={[styles.formLabel, { color: ZUZU_PURPLE }]}>Baby Last Name</Text>
+                  <View style={styles.lastNameInputContainer}>
+                    <TextInput
+                      style={styles.lastNameInput}
+                      value={lastName}
+                      onChangeText={setLastName}
+                      placeholder="Enter last name"
+                      placeholderTextColor={Colors.neutral.gray}
+                      returnKeyType="done"
                     />
-                  </TouchableOpacity>
+                  </View>
                 </View>
               </View>
               
@@ -270,7 +207,7 @@ export default function HomeScreen() {
                 style={styles.findNamesButton}
                 onPress={handleSearch}
               >
-                <Text style={styles.findNamesButtonText}>Find Names</Text>
+                <Text style={styles.findNamesButtonText}>Find Baby Names</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -279,7 +216,7 @@ export default function HomeScreen() {
             <BottomTabBar 
               likedNamesData={JSON.stringify(likedNames)}
               maybeNamesData={JSON.stringify(maybeNames)}
-              backgroundColor={Colors.gradients.background[1]}
+              backgroundColor="white"
             />
           </View>
           
@@ -293,7 +230,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </Link> */}
         </SafeAreaView>
-      </LinearGradient>
+      </View>
     </View>
   );
 }
@@ -304,6 +241,7 @@ const styles = StyleSheet.create({
   },
   background: {
     flex: 1,
+    backgroundColor: 'white',
   },
   content: {
     flex: 1,
@@ -344,6 +282,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#EEEEEE',
   },
   searchInput: {
     flex: 1,
@@ -374,28 +314,32 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    marginHorizontal: 8,
   },
   activeGenderOption: {
-    borderColor: 'white',
+    borderColor: 'transparent',
   },
   questionMarkText: {
     fontSize: 20,
     fontWeight: 'bold',
   },
-  lastNameButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
+  lastNameInputContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#EEEEEE',
+    width: 150,
+  },
+  lastNameInput: {
+    height: 40,
+    fontSize: 16,
+    color: 'black',
+    fontFamily: 'System',
   },
   findNamesButton: {
-    backgroundColor: '#FF5BA1',
+    backgroundColor: '#6A5AFF',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -430,24 +374,5 @@ const styles = StyleSheet.create({
   testButtonText: {
     color: 'white',
     fontWeight: '600',
-  },
-  statusBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  statusItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusText: {
-    color: 'white',
-    fontSize: 12,
-    marginLeft: 4,
   },
 }); 

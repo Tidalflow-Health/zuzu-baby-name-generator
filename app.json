@@ -24,7 +24,8 @@
       "buildNumber": "1",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Allow Zuzu Baby Names to access your photos to save name cards.",
-        "NSCameraUsageDescription": "Allow Zuzu Baby Names to access your camera to take photos of name cards."
+        "NSCameraUsageDescription": "Allow Zuzu Baby Names to access your camera to take photos of name cards.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

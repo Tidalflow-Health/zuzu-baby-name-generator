@@ -18,11 +18,11 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import BottomTabBar from './components/BottomTabBar';
-import Colors from '@/constants/Colors';
-import { useNameStatus } from '@/hooks/useNameStatus';
-import { useAINames } from '@/hooks/useAINames';
-import { FEATURES } from '@/utils/appConfig';
+import BottomTabBar from '../../src/components/BottomTabBar';
+import Colors from 'constants/Colors';
+import { useNameStatus } from 'hooks/useNameStatus';
+import { useAINames } from 'hooks/useAINames';
+import { FEATURES } from 'utils/appConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Get screen dimensions
@@ -441,7 +441,7 @@ export default function NamesScreen() {
     const currentName = namesRef.current[currentIdx]; // Use ref
     console.log(`[${timestamp}] 👉 SWIPE: Right (Like) started for "${currentName.firstName}"`);
     setIsProcessingSwipe(true);
-    setOverlayType('like'); // Type is now set in PanResponderMove
+    // setOverlayType('like'); // Type is now set in PanResponderMove
     
     // Animate card position only
     Animated.timing(position, {
@@ -452,6 +452,7 @@ export default function NamesScreen() {
       // Reset position and make old card invisible immediately
       position.setValue({ x: 0, y: 0 });
       topCardOpacity.setValue(0);
+      setOverlayType(null); // Clear overlay type after swipe completes
       
       const saveStartTime = Date.now();
       try {
@@ -481,11 +482,6 @@ export default function NamesScreen() {
         // DEBUG: console.log(`[${timestamp}] 👉 Setting isProcessingSwipe = false (Like Error)`);
         setIsProcessingSwipe(false);
         setError("Failed to save your choice. Please try again.");
-      } finally { // Ensure overlay fades out and type is cleared regardless of success/error
-        Animated.timing(overlayOpacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
-            setOverlayType(null);
-        });
-        setIsProcessingSwipe(false);
       }
     });
   };
@@ -502,7 +498,7 @@ export default function NamesScreen() {
     const currentName = namesRef.current[currentIdx]; // Use ref
     console.log(`[${timestamp}] 👈 SWIPE: Left (Dislike) started for "${currentName.firstName}"`);
     setIsProcessingSwipe(true);
-    setOverlayType('dislike'); // Type is now set in PanResponderMove
+    // setOverlayType('dislike'); // Type is now set in PanResponderMove
     
     // Animate card position only
     Animated.timing(position, {
@@ -513,7 +509,8 @@ export default function NamesScreen() {
       // Reset position and make old card invisible immediately
       position.setValue({ x: 0, y: 0 });
       topCardOpacity.setValue(0);
-      
+      setOverlayType(null); // Clear overlay type after swipe completes
+
       const saveStartTime = Date.now();
       try {
         await saveNameStatus(currentName, 'disliked');
@@ -542,11 +539,6 @@ export default function NamesScreen() {
         // DEBUG: console.log(`[${timestamp}] 👉 Setting isProcessingSwipe = false (Dislike Error)`);
         setIsProcessingSwipe(false);
         setError("Failed to save your choice. Please try again.");
-      } finally { // Ensure overlay fades out and type is cleared regardless of success/error
-        Animated.timing(overlayOpacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
-            setOverlayType(null);
-        });
-        setIsProcessingSwipe(false);
       }
     });
   };
@@ -563,7 +555,7 @@ export default function NamesScreen() {
     const currentName = namesRef.current[currentIdx]; // Use ref
     console.log(`[${timestamp}] 👆 SWIPE: Up (Maybe) started for "${currentName.firstName}"`);
     setIsProcessingSwipe(true);
-    setOverlayType('maybe'); // Type is now set in PanResponderMove
+    // setOverlayType('maybe'); // Type is now set in PanResponderMove
     
     // Animate card position only
     Animated.timing(position, {
@@ -574,7 +566,8 @@ export default function NamesScreen() {
       // Reset position and make old card invisible immediately
       position.setValue({ x: 0, y: 0 });
       topCardOpacity.setValue(0);
-      
+      setOverlayType(null); // Clear overlay type after swipe completes
+
       const saveStartTime = Date.now();
       try {
         await saveNameStatus(currentName, 'maybe');
@@ -603,11 +596,6 @@ export default function NamesScreen() {
         // DEBUG: console.log(`[${timestamp}] 👉 Setting isProcessingSwipe = false (Maybe Error)`);
         setIsProcessingSwipe(false);
         setError("Failed to save your choice. Please try again.");
-      } finally { // Ensure overlay fades out and type is cleared regardless of success/error
-        Animated.timing(overlayOpacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
-            setOverlayType(null);
-        });
-        setIsProcessingSwipe(false);
       }
     });
   };
@@ -641,14 +629,8 @@ export default function NamesScreen() {
     }
     console.log(`[${timestamp}] 👍 SWIPE: Like button pressed for "${namesRef.current[currentIdx].firstName}"`);
     animateButton(likeButtonScale);
-    setOverlayType('like'); // Set overlay type
-    Animated.timing(overlayOpacity, { toValue: 1, duration: 100, useNativeDriver: true }).start(); // Fade in overlay
     swipeRight().catch(error => {
       console.error(`[${timestamp}] ❌ SWIPE: Error during Like button action:`, error);
-      // Fade out overlay on error too
-      Animated.timing(overlayOpacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
-          setOverlayType(null);
-      });
     });
   };
   
@@ -661,14 +643,8 @@ export default function NamesScreen() {
     }
     console.log(`[${timestamp}] 🤔 SWIPE: Maybe button pressed for "${namesRef.current[currentIdx].firstName}"`);
     animateButton(maybeButtonScale);
-    setOverlayType('maybe'); // Set overlay type
-    Animated.timing(overlayOpacity, { toValue: 1, duration: 100, useNativeDriver: true }).start(); // Fade in overlay
     swipeUp().catch(error => {
       console.error(`[${timestamp}] ❌ SWIPE: Error during Maybe button action:`, error);
-      // Fade out overlay on error too
-      Animated.timing(overlayOpacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
-          setOverlayType(null);
-      });
     });
   };
 
@@ -680,15 +656,8 @@ export default function NamesScreen() {
       return;
     }
     console.log(`[${timestamp}] 👎 SWIPE: Dislike button pressed for "${namesRef.current[currentIdx].firstName}"`);
-    // No button scale animation needed for dislike
-    setOverlayType('dislike'); // Set overlay type
-    Animated.timing(overlayOpacity, { toValue: 1, duration: 100, useNativeDriver: true }).start(); // Fade in overlay
     swipeLeft().catch(error => {
       console.error(`[${timestamp}] ❌ SWIPE: Error during Dislike button action:`, error);
-      // Fade out overlay on error too
-      Animated.timing(overlayOpacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
-          setOverlayType(null);
-      });
     });
   };
   
@@ -934,7 +903,17 @@ export default function NamesScreen() {
             <Animated.View style={[
               styles.overlay,
               {
-                opacity: overlayOpacity // Use the animated ref directly
+                opacity: overlayType === 'maybe'
+                  ? position.y.interpolate({ // Opacity based on Y for Maybe
+                      inputRange: [-SCREEN_HEIGHT * 0.4, -50, 0], // Visible when dragged up significantly
+                      outputRange: [1, 1, 0],
+                      extrapolate: 'clamp'
+                    })
+                  : position.x.interpolate({ // Opacity based on X for Like/Dislike
+                      inputRange: [-SCREEN_WIDTH * 0.4, -50, 0, 50, SCREEN_WIDTH * 0.4],
+                      outputRange: [1, 1, 0, 1, 1], // Visible when dragged left/right significantly
+                      extrapolate: 'clamp'
+                    })
               }
             ]}>
               {overlayType === 'like' && <Text style={[styles.overlayText, styles.overlayLike]}>LIKE</Text>}
@@ -1159,7 +1138,7 @@ export default function NamesScreen() {
             onPress={handleDislike}
             activeOpacity={0.7}
           >
-            <Ionicons name="close" size={30} color="#FF0000" />
+            <Ionicons name="close" size={30} color="white" />
           </TouchableOpacity>
           
           <Animated.View style={{ transform: [{ scale: maybeButtonScale }] }}>
@@ -1224,6 +1203,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.neutral.black,
   },
   refreshButtonPressed: {
     backgroundColor: '#6A5AFF',
@@ -1326,15 +1307,13 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   likeButton: {
-    backgroundColor: '#6A5AFF',
+    backgroundColor: '#FF5BA1',
   },
   maybeButton: {
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#6A5AFF',
   },
   dislikeButton: {
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
+    backgroundColor: '#FF0000',
   },
   questionMark: {
     fontSize: 30,
@@ -1548,8 +1527,8 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '20deg' }],
   },
   overlayMaybe: {
-    borderColor: '#888888', // Grey border
-    color: '#888888', // Grey text
+    borderColor: '#6A5AFF', 
+    color: '#6A5AFF',
     // No rotation for maybe
   },
   // End Styles for Swipe Overlay

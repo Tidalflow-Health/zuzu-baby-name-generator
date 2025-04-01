@@ -1,0 +1,40 @@
+# Vercel Ignore File
+
+# Node Modules (should also be in .gitignore)
+node_modules
+
+# Expo specific cache/build folders
+.expo
+dist
+web-build
+.expo-shared
+
+# iOS / Android builds (should not be deployed)
+ios
+android
+
+# Git directory
+.git
+
+# Vercel project linking
+.vercel
+
+# Sentry Wizard artifacts
+sentry-wizard
+
+# Environment variables
+.env*
+
+# Asset files (if served elsewhere or too large)
+# Uncomment if assets are causing size issues
+# assets/
+
+# Other common ignores
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# MacOS specific
+.DS_Store 
