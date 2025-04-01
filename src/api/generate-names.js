@@ -119,16 +119,15 @@ Return ONLY a JSON array containing ${count} name objects in this exact format:
         parsedNames = generateFallbackNames(gender, Math.min(count, 10));
       }
 
-      // Ensure all names in the final array have the required fields
+      // Ensure all names in the final array have the required fields (NO LAST NAME HERE)
       parsedNames = parsedNames.map(name => ({
         firstName: name.firstName || name.name || "Unknown",
         meaning: name.meaning || "A beautiful name",
         origin: name.origin || "Traditional",
-        gender: name.gender || gender || "unisex",
-        lastName: lastName
+        gender: name.gender || gender || "unisex"
       }));
 
-    } catch (parseError) {
+    } catch (parseError) { // Removed ': any'
       console.error('[generate-names] Error processing or parsing OpenAI JSON response:', parseError);
       console.error('[generate-names] Raw Response Content:', rawResponse); // Log the problematic response
       
@@ -141,7 +140,7 @@ Return ONLY a JSON array containing ${count} name objects in this exact format:
     // Return the names wrapped in a "names" object to match frontend expectations
     return res.status(200).json({ names: parsedNames });
 
-  } catch (error) {
+  } catch (error) { // Removed ': any'
     // Log more details if it's an OpenAI API error
     if (error.constructor.name === 'APIError' || error.response) { // Check if it looks like an OpenAI error
       console.error('[generate-names] OpenAI API Error Details:', {
